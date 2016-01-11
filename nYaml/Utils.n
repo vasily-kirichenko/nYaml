@@ -1,0 +1,67 @@
+﻿using Nemerle;
+using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Globalization;
+
+namespace nYaml
+{
+    static class Extensions {
+        public static Choose[T, U](this xs: list[T], f: T -> option[U]): list[U] {
+            xs.Map(f).Filter(x => x.IsSome).Map(_.Value)
+        }
+        
+        public static TryHead[T](this xs: Seq[T]): option[T] {
+            match (xs) {
+            | h :: _ => Some(h)
+            | _ => None()
+            }
+        }
+        
+        public static TryPick[T, U](this xs: list[T], f: T -> option[U]): option[U] {
+            xs.MapLazyFiltered(x => {
+                    def r = f(x);
+                    (r.IsSome, r.Value)
+                })
+            .TryHead()
+        }
+    }
+
+    using Extensions;
+    
+    module ValueParser {
+        public Bool(text: string): option[bool] {
+            mutable r = false;
+            if (Boolean.TryParse(text, out r)) Some(r) else None()
+        }
+    //let (|Int|_|) = tryParseWith Int32.TryParse
+    //let (|Float|_|) = tryParseWith (fun x -> Double.TryParse(x, NumberStyles.Any, CultureInfo.InvariantCulture))
+        public TimeSpan(text: string): option[TimeSpan] {
+            mutable r: TimeSpan;
+            if (TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out r))
+                Some(r)
+            else None()
+        }
+
+    //let (|DateTime|_|) =  
+    //    tryParseWith (fun x -> DateTime.TryParse(x, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal))
+
+        public Uri(text: string): option[Uri] {
+            def schemas = ["http", "https", "ftp", "ftps", "sftp", "amqp", "file", "ssh", "tcp"];
+            schemas
+                .TryPick(x => { 
+                    if (text.Trim().StartsWith(x + ":", StringComparison.InvariantCultureIgnoreCase)) {
+                        mutable uri: Uri;
+                        if (System.Uri.TryCreate(text, UriKind.Absolute, out uri))
+                            Some(uri)
+                        else None()
+                    }
+                    else None()
+                })
+        }
+    }
+}

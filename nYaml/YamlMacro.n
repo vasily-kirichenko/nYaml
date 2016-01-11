@@ -12,6 +12,7 @@ using System.Linq;
 using YamlDotNet;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.Serializer;
+using nYaml.Extensions;
 
 namespace nYaml
 {
@@ -24,26 +25,40 @@ namespace nYaml
 	variant Scalar {
 	    | Int { v: int }
 	    | String { v: string }
-	    | TimeSpan { v: TimeSpan }
+	    | TimeSpan { v: System.TimeSpan }
 	    | Bool { v: bool }
-	    | Uri { v: Uri }
+	    | Uri { v: System.Uri }
 	    | Float { v: double }
+	    public override ToString(): string {
+	        match (this) {
+	        | Int(x) => $"Int($x)"
+	        | String(x) => $"String($x))"
+	        | TimeSpan(x) => $"TimeSpan($x))"
+	        | Bool(x) => $"Bool($x))"
+	        | Uri(x) => $"Uri($x))"
+	        | Float(x) => $"Float($x))"
+	        }
+	    }
     
-        //public static ParseStr(str: string) {
-        //    active match (str) {
-        //    | ValueParser.TimeSpan(x) => TimeSpan(x)
-        //    | ValueParser.Uri(x) => Uri(x)
-        //    | x => String(x)
-        //    }
-        //}
-        //static member FromObj : obj -> Scalar = function
-        //    | null -> String ""
-        //    | :? System.Boolean as b -> Bool b
-        //    | :? System.Int32 as i -> Int i
-        //    | :? System.Double as d -> Float d
-        //    | :? System.String as s ->
-        //        Scalar.ParseStr s
-        //    |t -> failwithf "Unknown type %s" (string (t.GetType()))
+        public static ParseStr(str: string): Scalar {
+            active match (str) {
+            | ValueParser.TimeSpan(x) => Scalar.TimeSpan(x)
+            | ValueParser.Uri(x) => Scalar.Uri(x)
+            | x => String(x)
+            }
+        }
+        
+	    public static FromObj(obj: object): Scalar {
+	        match (obj) {
+            | null => String("")
+            | b is System.Boolean => Bool(b)
+            | i is System.Int32 => Int(i)
+            | d is System.Double => Float(d)
+            | s is System.String => Scalar.ParseStr(s)
+            | t => throw Exception($"Unknown type $(t.GetType().ToString())")
+            }
+        }
+            
         //member x.UnderlyingType = 
         //    match x with
         //    | Int x -> x.GetType()
@@ -63,31 +78,41 @@ namespace nYaml
     }    
         
     variant Node {
-        | Scalar { v: Scalar }
+        | Scal { v: Scalar }
         | List { children: list[Node] }
         | Map { nodes: list[string * Node] }
+        public override ToString(): string {
+            match (this) {
+            | Scal(x) => $"Scalar($x))"
+            | List(x) => $"List(..$x))"
+            | Map(x) => $"Map(..$x))"
+            }
+        }
     }
 	
 	module YamlImpl {
 		public Transform(typer: Typer, text: string): PExpr {
-		    def settings = SerializationOptions();
             def serializer = Deserializer();
             def node = serializer.Deserialize(StringReader(text));
             
             def loop(n: object) {
                 match (n) {
-                | n is List<obj> as l => Node.List (l |> Seq.map loop |> Seq.toList)
-                | :? Dictionary<obj,obj> as m -> 
-                    Map (m |> Seq.choose (fun p -> 
-                        match p.Key with
-                        | :? string as key -> Some (key, loop p.Value)
-                        | _ -> None) |> Seq.toList)
-                | scalar ->
-                    Scalar (Scalar.FromObj scalar)
+                | l is List[object] => Node.List (l.Map(loop))
+                | d is Dictionary[object, object] => 
+                    Node.Map (d.NToList().Choose(p => {
+                        match (p.Key) {
+                        | key is string => Some(key, loop(p.Value))
+                        | _ => None()
+                        }}))
+                | scalar =>
+                    Node.Scal (Scalar.FromObj(scalar))
                 }
             }
+            
+            def node = loop(node);
+            def nodeAsString = node.ToString();
 		    
-			<[ $text ]>
+			<[ $nodeAsString ]>
 		}
 	}
 }

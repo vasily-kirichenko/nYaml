@@ -68,7 +68,7 @@
     </MacroReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ValueParser.n">
+    <Compile Include="Utils.n">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="YamlMacro.n" />
