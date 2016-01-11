@@ -1,0 +1,18 @@
+﻿using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.IO;
+using Nemerle.Utility;
+using System;
+using System.Collections.Generic;
+using System.Console;
+using System.Linq;
+using nYaml;
+
+module Program
+{
+    Main() : void
+    {
+        def x = Yaml("foo");
+        _ = ReadLine();
+    }
+}
