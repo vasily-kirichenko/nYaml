@@ -12,13 +12,17 @@ module Program
 {
     Main() : void
     {
-        def x = Yaml(<# 
+        yaml Y1 of <#
         Person:
             Age: 30
             Name: Phil
         
         
-        #>);
-        _ = ReadLine();
+        #>;
+
+        def foo = Y1();
+        WriteLine(foo.AstAsString);
+      
+        _ = ReadLine(); 
     }
 }
