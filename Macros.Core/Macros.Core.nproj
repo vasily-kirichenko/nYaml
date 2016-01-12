@@ -5,18 +5,18 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>4b175215-2386-4165-8ce8-1eab7afebca9</ProjectGuid>
+    <ProjectGuid>c2fef64d-efc3-4f63-8ddb-a68c4e0c5c5f</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>nYaml</RootNamespace>
-    <AssemblyName>nYaml</AssemblyName>
+    <RootNamespace>Macros.Core</RootNamespace>
+    <AssemblyName>Macros.Core</AssemblyName>
     <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NoStdLib>true</NoStdLib>
     <NemerleVersion>Net-4.0</NemerleVersion>
     <NemerleBinPathRoot Condition=" '$(NemerleBinPathRoot)' == '' ">$(ProgramFiles)\Nemerle</NemerleBinPathRoot>
     <Nemerle Condition=" '$(Nemerle)' == '' ">$(NemerleBinPathRoot)\$(NemerleVersion)</Nemerle>
-    <Name>nYaml</Name>
+    <Name>Macros.Core</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -37,12 +37,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
-    <Reference Include="Nemerle.ActivePatterns, Version=1.2.0.486, Culture=neutral, PublicKeyToken=null">
-      <Name>Nemerle.ActivePatterns</Name>
-      <AssemblyName>Nemerle.ActivePatterns.dll</AssemblyName>
-      <HintPath>C:\Program Files (x86)\Nemerle\net-4.0\Nemerle.ActivePatterns.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
@@ -68,26 +62,11 @@
     </MacroReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Utils.n">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="YamlMacro.n" />
+    <Compile Include="Show.n" />
     <Compile Include="Properties\AssemblyInfo.n" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="paket.references">
-      <SubType>Content</SubType>
-    </Content>
-  </ItemGroup>
-  <ItemGroup>
-    <MacroProjectReference Include="..\Macros.Core\Macros.Core.nproj">
-      <Name>Macros.Core</Name>
-      <Project>{c2fef64d-efc3-4f63-8ddb-a68c4e0c5c5f}</Project>
-      <Private>False</Private>
-    </MacroProjectReference>
   </ItemGroup>
   <Import Project="$(Nemerle)\Nemerle.MSBuild.targets" />
   <!--
@@ -99,15 +78,4 @@
 	<Target Name="AfterBuild">
 	</Target>
 	-->
-  <Choose>
-    <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.6' Or $(TargetFrameworkVersion) == 'v4.6.1')">
-      <ItemGroup>
-        <Reference Include="YamlDotNet">
-          <HintPath>..\packages\YamlDotNet\lib\net35\YamlDotNet.dll</HintPath>
-          <Private>True</Private>
-          <Paket>True</Paket>
-        </Reference>
-      </ItemGroup>
-    </When>
-  </Choose>
 </Project>

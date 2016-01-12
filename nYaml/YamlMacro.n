@@ -13,33 +13,25 @@ using YamlDotNet;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.Serializer;
 using nYaml.Extensions;
+using Macros.Core;
 
-namespace nYaml
-{
+namespace nYaml {
+    [MacroUsage (MacroPhase.BeforeInheritance, MacroTargets.Assembly)]
 	public macro Yaml(name: PExpr, text: PExpr)
-	syntax("yaml", name, "of", text)
+	//syntax("yaml", name, "of", text)
 	{
 		def typer = Macros.ImplicitCTX();
 		YamlImpl.Transform(typer, name, text);
 	}
 	
+	[Show]
 	variant Scalar {
-	    | Int { v: int }
+	    | Int { v: int; foo: bool }
 	    | String { v: string }
 	    | TimeSpan { v: System.TimeSpan }
 	    | Bool { v: bool }
 	    | Uri { v: System.Uri }
 	    | Float { v: double }
-	    public override ToString(): string {
-	        match (this) {
-	        | Int(x) => $"Int($x)"
-	        | String(x) => $"String($x))"
-	        | TimeSpan(x) => $"TimeSpan($x))"
-	        | Bool(x) => $"Bool($x))"
-	        | Uri(x) => $"Uri($x))"
-	        | Float(x) => $"Float($x))"
-	        }
-	    }
     
         public static ParseStr(str: string): Scalar {
             active match (str) {
@@ -53,7 +45,7 @@ namespace nYaml
 	        match (obj) {
             | null => String("")
             | b is System.Boolean => Bool(b)
-            | i is System.Int32 => Int(i)
+            | i is System.Int32 => Int(i, true)
             | d is System.Double => Float(d)
             | s is System.String => Scalar.ParseStr(s)
             | t => throw Exception($"Unknown type $(t.GetType().ToString())")
@@ -78,17 +70,11 @@ namespace nYaml
         //    | Float x -> box x
     }    
         
+    [Show]
     variant Node {
         | Scal { v: Scalar }
         | List { children: list[Node] }
         | Map { nodes: list[string * Node] }
-        public override ToString(): string {
-            match (this) {
-            | Scal(x) => $"Scalar($x))"
-            | List(x) => $"List(..$x))"
-            | Map(x) => $"Map(..$x))"
-            }
-        }
     }
 	
 	module YamlImpl {
@@ -114,18 +100,15 @@ namespace nYaml
             
                 def node = loop(node);
                 def nodeAsString = node.ToString();
-                unless (!typer.IsMainPass) {
+		        Util.locate(typeName.Location,
+		        {
 		            def builder = typer.Env.Define(<[ decl:
-            		    public partial class $(typeName: name) {
+            		    public class $typeName {
             		        public AstAsString: string { get { $nodeAsString }}
-            		    
             		    }
 		                ]>);
-		        
-		            unless(typer.InErrorMode)
-		                builder.Compile();
-		        }
-		            
+		            builder.Compile();
+		        });
 		        <[]>
 			  }
 			| _ => Message.FatalError($"Name must be a symbol and text must be a string, but got $(typeName.GetType().ToString()), $(text.ToString())")

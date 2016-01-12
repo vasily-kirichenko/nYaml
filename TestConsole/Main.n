@@ -8,21 +8,28 @@ using System.Console;
 using System.Linq;
 using nYaml;
 
-module Program
-{
-    Main() : void
-    {
-        yaml Y1 of <#
+namespace TestConsole {
+    [assembly: Yaml(Y4, <#
         Person:
             Age: 30
             Name: Phil
-        
-        
-        #>;
 
-        def foo = Y1();
-        WriteLine(foo.AstAsString);
-      
-        _ = ReadLine(); 
+
+        #>)];
+
+    [Record]
+    class R {
+        public I: int
+    }
+        
+    module Program
+    {
+        Main() : void
+        {
+            def foo = Y4();
+
+            WriteLine(foo.AstAsString);
+            _ = ReadLine(); 
+        }
     }
 }
