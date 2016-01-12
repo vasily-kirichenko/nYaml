@@ -26,7 +26,7 @@ namespace nYaml {
 	
 	[Show]
 	variant Scalar {
-	    | Int { v: int; foo: bool }
+	    | Int { v: int }
 	    | String { v: string }
 	    | TimeSpan { v: System.TimeSpan }
 	    | Bool { v: bool }
@@ -45,21 +45,25 @@ namespace nYaml {
 	        match (obj) {
             | null => String("")
             | b is System.Boolean => Bool(b)
-            | i is System.Int32 => Int(i, true)
+            | i is System.Int32 => Int(i)
             | d is System.Double => Float(d)
             | s is System.String => Scalar.ParseStr(s)
             | t => throw Exception($"Unknown type $(t.GetType().ToString())")
             }
         }
             
-        //member x.UnderlyingType = 
-        //    match x with
-        //    | Int x -> x.GetType()
-        //    | String x -> x.GetType()
-        //    | Bool x -> x.GetType()
-        //    | TimeSpan x -> x.GetType()
-        //    | Uri x -> x.GetType()
-        //    | Float x -> x.GetType()
+        public UnderlyingType: Type {
+            get {
+                match (this) {
+                | Int(v) with x = v : object
+                | String(x)
+                | Bool(x)
+                | TimeSpan(x)
+                | Uri(x)
+                | Float(x) => x.GetType()
+                }
+            }
+        }
         //member x.BoxedValue =
         //    match x with
         //    | Int x -> box x
@@ -75,6 +79,36 @@ namespace nYaml {
         | Scal { v: Scalar }
         | List { children: list[Node] }
         | Map { nodes: list[string * Node] }
+    }
+    
+    module Builder {
+        public Transform(name: option[string], node: Node): PExpr {
+            <[  ]>
+        }
+        
+        public TransformNode (name: option[string], node: Node): list[ClassMember] {
+            match (name, node) {
+            | (Some(name), Scal(x)) => TransformScalar(name, x)
+            //| (_, Map(m)) => TransformMap(name, m)
+            //| (Some(name), List(l)) => TransformList(name, true, l)
+            | _ => []
+            //| (None, _) => throw Exception("Only Maps are allowed at the root level.")
+            }
+        }
+        
+        TransformScalar(name: string, node: Scalar): list[ClassMember] {
+            def rawType = node.UnderlyingType.FullName;
+            def name = $"_$name";
+            def field = <[decl: private $(name: usesite): $(rawType: usesite) ]>;
+            //let prop = ProvidedProperty (name, rawType, IsStatic = false, GetterCode = (fun [me] -> Expr.FieldGet(me, field)))
+            //if not readOnly then prop.SetterCode <- (fun [me;v] -> Expr.FieldSet(me, field, v))
+            //let initValue = node.ToExpr()
+
+            //{ MainType = Some rawType
+            //  Types = [field :> MemberInfo; prop :> MemberInfo]
+            //  Init = fun me -> Expr.FieldSet(me, field, initValue) }
+            [field]
+        }
     }
 	
 	module YamlImpl {
@@ -102,9 +136,11 @@ namespace nYaml {
                 def nodeAsString = node.ToString();
 		        Util.locate(typeName.Location,
 		        {
+		            def members = Builder.Transform(None(), node);
 		            def builder = typer.Env.Define(<[ decl:
             		    public class $typeName {
             		        public AstAsString: string { get { $nodeAsString }}
+            		        ..$members
             		    }
 		                ]>);
 		            builder.Compile();
