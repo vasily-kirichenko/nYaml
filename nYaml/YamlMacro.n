@@ -82,11 +82,7 @@ namespace nYaml {
     }
     
     module Builder {
-        public Transform(name: option[string], node: Node): PExpr {
-            <[  ]>
-        }
-        
-        public TransformNode (name: option[string], node: Node): list[ClassMember] {
+        public Transform (name: option[string], node: Node): list[ClassMember] {
             match (name, node) {
             | (Some(name), Scal(x)) => TransformScalar(name, x)
             //| (_, Map(m)) => TransformMap(name, m)
@@ -139,7 +135,7 @@ namespace nYaml {
 		            def members = Builder.Transform(None(), node);
 		            def builder = typer.Env.Define(<[ decl:
             		    public class $typeName {
-            		        public AstAsString: string { get { $nodeAsString }}
+            		        //public AstAsString: string { get { $nodeAsString }}
             		        ..$members
             		    }
 		                ]>);

@@ -28,7 +28,7 @@ namespace TestConsole {
         {
             def foo = Y4();
 
-            WriteLine(foo.AstAsString);
+            //WriteLine(foo.AstAsString);
             _ = ReadLine(); 
         }
     }
