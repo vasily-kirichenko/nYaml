@@ -7,32 +7,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Globalization;
+using Utils;
 
 namespace nYaml
 {
-    static class Extensions {
-        public static Choose[T, U](this xs: list[T], f: T -> option[U]): list[U] {
-            xs.Map(f).Filter(x => x.IsSome).Map(_.Value)
-        }
-        
-        public static TryHead[T](this xs: Seq[T]): option[T] {
-            match (xs) {
-            | h :: _ => Some(h)
-            | _ => None()
-            }
-        }
-        
-        public static TryPick[T, U](this xs: list[T], f: T -> option[U]): option[U] {
-            xs.MapLazyFiltered(x => {
-                    def r = f(x);
-                    (r.IsSome, r.Value)
-                })
-            .TryHead()
-        }
-    }
-
-    using Extensions;
-    
     module ValueParser {
         public Bool(text: string): option[bool] {
             mutable r = false;
@@ -52,8 +30,7 @@ namespace nYaml
 
         public Uri(text: string): option[Uri] {
             def schemas = ["http", "https", "ftp", "ftps", "sftp", "amqp", "file", "ssh", "tcp"];
-            schemas
-                .TryPick(x => { 
+            schemas.TryPick(x => { 
                     if (text.Trim().StartsWith(x + ":", StringComparison.InvariantCultureIgnoreCase)) {
                         mutable uri: Uri;
                         if (System.Uri.TryCreate(text, UriKind.Absolute, out uri))

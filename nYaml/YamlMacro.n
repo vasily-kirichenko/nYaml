@@ -12,7 +12,7 @@ using System.Linq;
 using YamlDotNet;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.Serializer;
-using nYaml.Extensions;
+using Utils;
 using Macros.Core;
 
 namespace nYaml {
@@ -29,9 +29,12 @@ namespace nYaml {
 	    | Int { v: int }
 	    | String { v: string }
 	    | TimeSpan { v: System.TimeSpan }
-	    | Bool { v: bool }
+	    | Bool { v: bool; [RecordIgnore] foo: int }
 	    | Uri { v: System.Uri }
-	    | Float { v: double }
+	    | Float { 
+	        v: double;
+	        public override ToString(): string { "foo" }
+	      }
     
         public static ParseStr(str: string): Scalar {
             active match (str) {
@@ -130,12 +133,13 @@ namespace nYaml {
             
                 def node = loop(node);
                 def nodeAsString = node.ToString();
-		        Util.locate(typeName.Location,
+		        
+                Util.locate(typeName.Location,
 		        {
-		            def members = Builder.Transform(None(), node);
+		            def astAsStringProp = <[ decl: public AstAsString: string { get { $nodeAsString }} ]>;
+		            def members = astAsStringProp :: Builder.Transform(None(), node);
 		            def builder = typer.Env.Define(<[ decl:
             		    public class $typeName {
-            		        //public AstAsString: string { get { $nodeAsString }}
             		        ..$members
             		    }
 		                ]>);

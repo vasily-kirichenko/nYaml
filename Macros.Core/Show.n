@@ -2,11 +2,13 @@
 using Nemerle.Collections;
 using Nemerle.Compiler;
 using Nemerle.Text;
+using Nemerle.Core.Option;
 using Nemerle.Utility;
 using Nemerle.Compiler.Parsetree;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Utils;
 
 namespace Macros.Core
 {
@@ -16,6 +18,30 @@ namespace Macros.Core
     }
 
     module ShowImpl {
+        GetRecordCtorParams(t: TypeBuilder): option[list[string]] {
+            def recordCtor =
+                t.GetConstructors(BindingFlags.Public)
+                 .FirstOrDefault(x => x.IsCustomAttributeDefined("Nemerle.Internal.RecordCtorAttribute"))
+                 .OfNull();
+                        
+            recordCtor.Map(x => {
+                x.GetParameters()
+                 .Map(x => x.CustomAttributes)
+                 .Flatten()
+                 .Choose(x => 
+                     match (x) {
+                     | PExpr.Call(_, pars) =>
+                         Some(pars.Choose(par =>
+                             match (par) {
+                             | PExpr.Literal(Literal.String(name)) => Some(name)
+                             | _ => None()
+                             }))
+                     | _ => None()
+                     })
+                 .Flatten()
+              })
+        }
+        
         public Transform(ty: TypeBuilder): void {
             match (ty) {
             | _ when ty.IsDelegate with n = "delegates"
@@ -23,28 +49,34 @@ namespace Macros.Core
             | _ when ty.IsInterface with n = "interfaces"
             | _ when ty.IsModule with n = "modules" => 
                 Message.Error(ty.Location, $"The Show macro does not support $n."); 
-                <[]>
             | _ => {
                 ty.GetVariantOptions().Iter(opt => {
-                    def fields: list[IField] = opt.GetFields(BindingFlags.Public %| BindingFlags.Instance %| BindingFlags.DeclaredOnly);
-                    def fieldsExpr: PExpr = fields.Fold(<[]>, (f, acc) => {
-                         match (acc) {
-                         | <[]> => <[ $(f.Name: usesite).ToString() ]>
-                         | _ => <[ $acc + ", " + $(f.Name: usesite).ToString() ]>
-                         }
-                    });
+                    unless (opt.GetDirectMembers().Any(x => x.Name == "ToString"))
+                    {
+                        match (GetRecordCtorParams(opt)) {
+                        | None => ()
+                        | Some(pars) => {
+                            def fieldsExpr: PExpr = pars.Fold(<[]>, (f, acc) => {
+                                 match (acc) {
+                                 | <[]> => <[ $(f: usesite).ToString() ]>
+                                 | _ => <[ $acc + ", " + $(f: usesite).ToString() ]>
+                                 }
+                            });
                     
-                    def body: PExpr =
-                        match (fieldsExpr) {
-                        | <[]> => <[ $(opt.Name) ]>
-                        | _ => <[ $(opt.Name) + "(" + $fieldsExpr + ")" ]>
-                        };
+                            def body: PExpr =
+                                match (fieldsExpr) {
+                                | <[]> => <[ $(opt.Name) ]>
+                                | _ => <[ $(opt.Name) + "(" + $fieldsExpr + ")" ]>
+                                };
                            
-                    opt.Define(<[decl:
-                        public override ToString(): string {
-                            $body
-                        }
-                        ]>);
+                            opt.Define(<[decl:
+                                public override ToString(): string {
+                                    $body
+                                }
+                                ]>);
+                          }
+                       }
+                    }
                 });
               }
             }

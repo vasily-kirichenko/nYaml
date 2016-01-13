@@ -13,7 +13,7 @@ namespace TestConsole {
         Person:
             Age: 30
             Name: Phil
-
+            Man: true
 
         #>)];
 
@@ -27,8 +27,8 @@ namespace TestConsole {
         Main() : void
         {
             def foo = Y4();
-
-            //WriteLine(foo.AstAsString);
+            
+            WriteLine(foo.AstAsString);
             _ = ReadLine(); 
         }
     }

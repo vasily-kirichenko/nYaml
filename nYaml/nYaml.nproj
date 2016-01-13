@@ -68,6 +68,9 @@
     </MacroReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Extensions.n">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Utils.n">
       <SubType>Code</SubType>
     </Compile>
