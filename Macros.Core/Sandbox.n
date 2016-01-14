@@ -1,0 +1,32 @@
+﻿using Nemerle;
+using Nemerle.Collections;
+using Nemerle.Compiler;
+using Nemerle.Compiler.Parsetree;
+using Nemerle.Compiler.Typedtree;
+using Nemerle.Text;
+using Nemerle.Utility;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Macros.Core
+{
+    macro RangePattern(body)
+    syntax ("m", "(", body, ")") {
+        SandboxImpl.DoTransform(Macros.ImplicitCTX(), body)
+    }
+
+    module SandboxImpl {
+        public DoTransform(typer: Typer, body: PExpr) : PExpr {
+            Macros.DefineCTX(typer);
+            match (body) {
+            | <[ $minExpr < $val < $maxExpr ]> => 
+                <[ $val > $minExpr && $val < $maxExpr ]>
+            | _ => Message.Error(body.Location, $"Syntax error '$body'"); 
+                <[ () ]>
+            }
+            //<[]>
+        }
+    }
+}

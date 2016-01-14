@@ -151,4 +151,15 @@ namespace nYaml {
 		    }
 		}
 	}
+	
+	module Test {
+	    x(): void {
+	        def y = 
+	            def foo = 45;
+	            def x =  m (1 < foo < 4);
+	            //match (x) {
+	            //| m (1 < x < 4) => 2
+    	        //}
+	    }
+	}
 }
