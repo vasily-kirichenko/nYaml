@@ -62,9 +62,6 @@
     </MacroReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Extensions.n">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="Show.n" />
     <Compile Include="Properties\AssemblyInfo.n" />
   </ItemGroup>
