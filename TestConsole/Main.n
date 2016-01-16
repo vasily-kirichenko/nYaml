@@ -10,11 +10,8 @@ using nYaml;
 
 namespace TestConsole {
     [assembly: Yaml(Y4, <#
-        Person:
-            Age: 30
-            Name: Phil
-            Man: true
-
+        Person: 1
+        Foo: 2.3
         #>)];
 
     [Record]
@@ -26,10 +23,14 @@ namespace TestConsole {
     {
         Main() : void
         {
-            def foo = Y4();
+            def y4 = Y4();
+            def p = y4.Person;
+            def foo = y4.Foo;
+            WriteLine(y4.AstAsString);
+            WriteLine($"foo = $foo, p = $p");
+            //WriteLine(GetLocals());
             
-            WriteLine(foo.AstAsString);
-            _ = ReadLine(); 
+            _ = ReadLine();
         }
     }
 }

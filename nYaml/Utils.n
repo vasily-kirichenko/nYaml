@@ -20,7 +20,7 @@ namespace nYaml
     //let (|Float|_|) = tryParseWith (fun x -> Double.TryParse(x, NumberStyles.Any, CultureInfo.InvariantCulture))
         public TimeSpan(text: string): option[TimeSpan] {
             mutable r: TimeSpan;
-            if (TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out r))
+            if (TimeSpan.TryParseExact(text, "d.HH:mm:ss", CultureInfo.InvariantCulture, out r))
                 Some(r)
             else None()
         }

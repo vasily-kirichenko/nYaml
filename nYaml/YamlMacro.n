@@ -31,10 +31,7 @@ namespace nYaml {
 	    | TimeSpan { v: System.TimeSpan }
 	    | Bool { v: bool; [RecordIgnore] foo: int }
 	    | Uri { v: System.Uri }
-	    | Float { 
-	        v: double;
-	        public override ToString(): string { "foo" }
-	      }
+	    | Float { v: double; }
     
         public static ParseStr(str: string): Scalar {
             active match (str) {
@@ -83,37 +80,49 @@ namespace nYaml {
         | List { children: list[Node] }
         | Map { nodes: list[string * Node] }
     }
-    
+        
     module Builder {
-        public Transform (name: option[string], node: Node): list[ClassMember] {
+        public Transform (builder: TypeBuilder, name: option[string], node: Node): void  {
             match (name, node) {
-            | (Some(name), Scal(x)) => TransformScalar(name, x)
-            //| (_, Map(m)) => TransformMap(name, m)
+            | (Some(name), Scal(x)) => TransformScalar(builder, name, x)
+            | (_, Map(m)) => TransformMap(builder, name, m)
             //| (Some(name), List(l)) => TransformList(name, true, l)
-            | _ => []
+            | _ => ()
             //| (None, _) => throw Exception("Only Maps are allowed at the root level.")
             }
         }
         
-        TransformScalar(name: string, node: Scalar): list[ClassMember] {
-            def rawType = node.UnderlyingType.FullName;
-            def name = $"_$name";
-            def field = <[decl: private $(name: usesite): $(rawType: usesite) ]>;
-            //let prop = ProvidedProperty (name, rawType, IsStatic = false, GetterCode = (fun [me] -> Expr.FieldGet(me, field)))
-            //if not readOnly then prop.SetterCode <- (fun [me;v] -> Expr.FieldSet(me, field, v))
-            //let initValue = node.ToExpr()
-
-            //{ MainType = Some rawType
-            //  Types = [field :> MemberInfo; prop :> MemberInfo]
-            //  Init = fun me -> Expr.FieldSet(me, field, initValue) }
-            [field]
+        TransformScalar(builder: TypeBuilder, name: string, node: Scalar): void {
+            def rawType = node.UnderlyingType.Name;
+            def fieldName = $"_$name";
+            builder.Define(<[decl: private mutable $(fieldName: usesite): $(rawType: usesite) ]>);
+            builder.Define(<[decl: public $(name: usesite): $(rawType: usesite) { get { this.$(fieldName: usesite) } } ]>);
+        }
+        
+        TransformChildren(builder: TypeBuilder, children: list[string * Node]): void {
+            foreach ((name, child) in children)
+                Transform(builder, Some(name), child);
+        }
+        
+        TransformMap(builder: TypeBuilder, name: option[string], children: list[string * Node]): void {
+            match (name) {
+            | Some (name) =>
+                def typeName = name + "_Type";
+                def mapTy = builder.DefineNestedType(<[decl: public sealed class $(typeName: usesite) { } ]>);
+                TransformChildren(mapTy, children);
+                def mapFieldName = $"_$name";
+                builder.Define(<[decl: private $(mapFieldName: usesite): $(mapTy.Name: usesite) = $(mapTy.Name: usesite)(); ]>);
+                builder.Define(<[decl: public $(mapTy.Name: usesite): $(mapTy.Name: usesite) { get { this.$(mapFieldName: usesite) } } ]>);
+            | None => 
+                TransformChildren(builder, children)
+            }
         }
     }
 	
 	module YamlImpl {
 		public Transform(typer: Typer, typeName: PExpr, text: PExpr): PExpr {
 		    match (typeName, text) {
-		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(PExpr.Literal(Literal.String(text))) ]>) => { 
+		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(text: string) ]>) => { 
                 def serializer = Deserializer();
                 def node = serializer.Deserialize(StringReader(text));
             
@@ -133,16 +142,11 @@ namespace nYaml {
             
                 def node = loop(node);
                 def nodeAsString = node.ToString();
-		        
                 Util.locate(typeName.Location,
 		        {
-		            def astAsStringProp = <[ decl: public AstAsString: string { get { $nodeAsString }} ]>;
-		            def members = astAsStringProp :: Builder.Transform(None(), node);
-		            def builder = typer.Env.Define(<[ decl:
-            		    public class $typeName {
-            		        ..$members
-            		    }
-		                ]>);
+		            def builder = typer.Env.Define(<[ decl: public sealed class $typeName {} ]>);
+		            builder.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
+		            Builder.Transform(builder, None(), node);
 		            builder.Compile();
 		        });
 		        <[]>
@@ -154,12 +158,18 @@ namespace nYaml {
 	
 	module Test {
 	    x(): void {
-	        def y = 
-	            def foo = 45;
-	            def x =  m (1 < foo < 4);
-	            //match (x) {
-	            //| m (1 < x < 4) => 2
-    	        //}
+            _ = 
+                my match (2) {
+                | 1 < x < 4 => x
+                | 1 < x < 4 when x > 1 => x + 1
+                | x when x > 10 => 1
+                }
+            mutable x;
+            GetTypedInfo(x);
+            
+            _ = lock1 (array[1]) { 1 == 1 }
+            
+            x = List.[int](2);
 	    }
 	}
 }

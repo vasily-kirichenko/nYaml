@@ -12,21 +12,92 @@ using System.Linq;
 
 namespace Macros.Core
 {
+    macro Lock(expr, body) 
+    syntax ("lock1", "(", expr, ")", body)
+    {
+        Lock.Transform(Macros.ImplicitCTX(), expr, body)
+    }
+    
+    module Lock {
+        public Transform(typer: Typer, expr: PExpr, body: PExpr): PExpr {
+            typer.TransformWhenAllTypesWouldBeInfered((_, te) => {
+                match (te.Type.Hint) {
+                | Some (FixedType.Array(_, _)) when typer.IsMainPass =>
+                    <[
+                        def toLock = $(te: typed);
+                        System.Threading.Monitor.Enter(toLock);
+                        try { $body }
+                        finally {
+                            System.Threading.Monitor.Exit(toLock);
+                        }
+                    ]>
+                | _ => 
+                    Message.FatalError(expr.Location, "Applicable on arrays only");
+                    <[]>
+                }
+            }
+            , typer.TypeExpr(expr));
+        }
+    }
+    
+    macro GetTypedInfo(expr) {
+        GetTypedInfo.Transform(Macros.ImplicitCTX(), expr)
+    }
+    
+    module GetTypedInfo {
+        public Transform(typer: Typer, expr: PExpr): PExpr {
+            def texpr = typer.TypeExpr(expr);
+            typer.TransformWhenAllTypesWouldBeInfered((pe, te) => {
+                Message.Hint($"Type of $(pe): Type = $(te.Type), LowerBound = $(te.Type.LowerBound)" +
+                             $", UpperBound = $(te.Type.UpperBound)");
+                _ = te.Type.Fix();
+                Message.Hint($"Type of $(pe): Type = $(te.Type), LowerBound = $(te.Type.LowerBound)" +
+                             $", UpperBound = $(te.Type.UpperBound)");
+                <[]>
+            }
+            , texpr);
+        }
+    }
+    
+    macro GetLocals() {
+        GetLocalsImpl.Transform(Macros.ImplicitCTX());
+    }
+    
+    module GetLocalsImpl {
+        public Transform(t: Typer): PExpr {
+            def locals = string.Join(", ", t.LocalContext.GetLocals().Map((_, local) => $"$(local.Name): $(local.Type)"));
+            <[ $locals ]>
+        }
+    }
+    
     macro RangePattern(body)
-    syntax ("m", "(", body, ")") {
+    syntax ("my", body) {
         SandboxImpl.DoTransform(Macros.ImplicitCTX(), body)
     }
 
     module SandboxImpl {
         public DoTransform(typer: Typer, body: PExpr) : PExpr {
             Macros.DefineCTX(typer);
-            match (body) {
-            | <[ $minExpr < $val < $maxExpr ]> => 
-                <[ $val > $minExpr && $val < $maxExpr ]>
-            | _ => Message.Error(body.Location, $"Syntax error '$body'"); 
+            
+            if (body is <[ match ($val) { ..$cases } ]>)
+            {
+                def cases =
+                    cases.Map(case => 
+                        match (case) {
+                        | <[case: | $minExpr < $pvar < $maxExpr when $guard => $res ]>
+                        | <[case: | $minExpr < $pvar < $maxExpr => $res ]> with guard = <[ true ]> =>
+                            def guards = <[ $val > $minExpr && $val < $maxExpr && $guard ]>;
+                            <[ case: | $pvar when $guards => $res ]>
+                        | x => x
+                        });
+                
+                <[ match ($val) { ..$cases } ]>                
+            }
+            else
+            {
+                Message.Error(body.Location, $"Syntax error '$body'"); 
                 <[ () ]>
             }
-            //<[]>
         }
     }
 }
