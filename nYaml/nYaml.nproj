@@ -105,8 +105,8 @@
   <Choose>
     <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.6' Or $(TargetFrameworkVersion) == 'v4.6.1')">
       <ItemGroup>
-        <Reference Include="YamlDotNet">
-          <HintPath>..\packages\YamlDotNet\lib\net35\YamlDotNet.dll</HintPath>
+        <Reference Include="SharpYaml">
+          <HintPath>..\packages\SharpYaml\lib\SharpYaml.dll</HintPath>
           <Private>True</Private>
           <Paket>True</Paket>
         </Reference>

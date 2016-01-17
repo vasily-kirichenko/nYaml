@@ -11,7 +11,7 @@ using nYaml;
 namespace TestConsole {
     [assembly: Yaml(Y4, <#
         Person: 1
-        Foo: 2.3
+        Foo: 2.2
         #>)];
 
     [Record]

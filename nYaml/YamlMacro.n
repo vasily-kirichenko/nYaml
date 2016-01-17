@@ -5,31 +5,62 @@ using Nemerle.Compiler.Parsetree;
 using Nemerle.Text;
 using Nemerle.Utility;
 using Nemerle.ActivePatterns;
+using Nemerle.Extensions;
 using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
-using YamlDotNet;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.Serializer;
+using SharpYaml;
+using SharpYaml.Serialization;
+using SharpYaml.Serialization.Serializer;
 using Utils;
 using Macros.Core;
 
 namespace nYaml {
+    /*
+Following code:
+    
+[assembly: Yaml(Y4, <#
+Foo: 1
+	Person:
+	    Name: "bar"
+	    Age: 30
+	    Addr: http://1.com/
+#>)];    
+    
+generates code like this:
+	        
+public class Yaml {
+    mutable _Foo: int = 1;
+	_Person: Person_Type = Person_Type();
+	    
+	public Foo: int { get { _Foo }}
+	public Person: Person_Type { get { _Person }}
+	    
+	public class Person_Type {
+	    mutable _Name: string = "bar";
+	    mutable _Age: int = 30;
+	    mutable _Addr: Uri = Uri("http://1.com");
+	            
+	    public Name: string { get { _Name }}
+	    public Age: int { get { _Age }}
+	    public Addr: Uri { get { _Addr }}
+	}
+}*/
+
     [MacroUsage (MacroPhase.BeforeInheritance, MacroTargets.Assembly)]
 	public macro Yaml(name: PExpr, text: PExpr)
-	//syntax("yaml", name, "of", text)
 	{
 		def typer = Macros.ImplicitCTX();
 		YamlImpl.Transform(typer, name, text);
 	}
 	
 	[Show]
-	variant Scalar {
+    variant Scalar {
 	    | Int { v: int }
 	    | String { v: string }
 	    | TimeSpan { v: System.TimeSpan }
-	    | Bool { v: bool; [RecordIgnore] foo: int }
+	    | Bool { v: bool }
 	    | Uri { v: System.Uri }
 	    | Float { v: double; }
     
@@ -53,6 +84,10 @@ namespace nYaml {
         }
             
         public UnderlyingType: Type {
+            get { BoxedValue.GetType() }
+        }
+
+        public BoxedValue: object {
             get {
                 match (this) {
                 | Int(v) with x = v : object
@@ -60,18 +95,10 @@ namespace nYaml {
                 | Bool(x)
                 | TimeSpan(x)
                 | Uri(x)
-                | Float(x) => x.GetType()
+                | Float(x) => x
                 }
             }
         }
-        //member x.BoxedValue =
-        //    match x with
-        //    | Int x -> box x
-        //    | String x -> box x
-        //    | TimeSpan x -> box x
-        //    | Bool x -> box x
-        //    | Uri x -> box x
-        //    | Float x -> box x
     }    
         
     [Show]
@@ -93,10 +120,11 @@ namespace nYaml {
         }
         
         TransformScalar(builder: TypeBuilder, name: string, node: Scalar): void {
-            def rawType = node.UnderlyingType.Name;
+            def fieldType = PExpr.FromQualifiedIdentifier(builder.Manager, node.BoxedValue.GetType().FullName);
             def fieldName = $"_$name";
-            builder.Define(<[decl: private mutable $(fieldName: usesite): $(rawType: usesite) ]>);
-            builder.Define(<[decl: public $(name: usesite): $(rawType: usesite) { get { this.$(fieldName: usesite) } } ]>);
+            def defaultValue = node.BoxedValue.ToString();
+            builder.Define(<[decl: private mutable $(fieldName: usesite): $fieldType = $(defaultValue: usesite); ]>);
+            builder.Define(<[decl: public $(name: usesite): $fieldType { get { this.$(fieldName: usesite) } } ]>);
         }
         
         TransformChildren(builder: TypeBuilder, children: list[string * Node]): void {
@@ -107,12 +135,14 @@ namespace nYaml {
         TransformMap(builder: TypeBuilder, name: option[string], children: list[string * Node]): void {
             match (name) {
             | Some (name) =>
-                def typeName = name + "_Type";
-                def mapTy = builder.DefineNestedType(<[decl: public sealed class $(typeName: usesite) { } ]>);
+                def typeName = Macros.NewSymbol(name);
+                Message.Hint($"About to define $typeName...");
+                def mapTy = builder.DefineNestedType(<[decl: public sealed class $typeName { } ]>);
                 TransformChildren(mapTy, children);
+                mapTy.Compile();
                 def mapFieldName = $"_$name";
-                builder.Define(<[decl: private $(mapFieldName: usesite): $(mapTy.Name: usesite) = $(mapTy.Name: usesite)(); ]>);
-                builder.Define(<[decl: public $(mapTy.Name: usesite): $(mapTy.Name: usesite) { get { this.$(mapFieldName: usesite) } } ]>);
+                builder.Define(<[decl: private $(mapFieldName: usesite): $(typeName: name) = $(mapTy.Name: usesite)(); ]>);
+                builder.Define(<[decl: public $(mapTy.Name: usesite): $(typeName: name) { get { this.$(mapFieldName: usesite) } } ]>);
             | None => 
                 TransformChildren(builder, children)
             }
@@ -123,10 +153,16 @@ namespace nYaml {
 		public Transform(typer: Typer, typeName: PExpr, text: PExpr): PExpr {
 		    match (typeName, text) {
 		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(text: string) ]>) => { 
-                def serializer = Deserializer();
+		    def settings = SerializerSettings() <- 
+		        { EmitDefaultValues = true; 
+		          EmitTags = false; 
+		          SortKeyForMapping = false 
+		        };
+                def serializer = Serializer(settings);
                 def node = serializer.Deserialize(StringReader(text));
             
                 def loop(n: object) {
+                    Message.Hint($"Node: $n, type = $(n.GetType())");
                     match (n) {
                     | l is List[object] => Node.List (l.Map(loop))
                     | d is Dictionary[object, object] => 
@@ -154,22 +190,5 @@ namespace nYaml {
 			| _ => Message.FatalError($"Name must be a symbol and text must be a string, but got $(typeName.GetType().ToString()), $(text.ToString())")
 		    }
 		}
-	}
-	
-	module Test {
-	    x(): void {
-            _ = 
-                my match (2) {
-                | 1 < x < 4 => x
-                | 1 < x < 4 when x > 1 => x + 1
-                | x when x > 10 => 1
-                }
-            mutable x;
-            GetTypedInfo(x);
-            
-            _ = lock1 (array[1]) { 1 == 1 }
-            
-            x = List.[int](2);
-	    }
 	}
 }

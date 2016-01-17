@@ -2,4 +2,4 @@ FRAMEWORK: >= NET46
 NUGET
   remote: https://www.nuget.org/api/v2
   specs:
-    YamlDotNet (3.7.0)
+    SharpYaml (1.5.3)
