@@ -32,20 +32,20 @@ generates code like this:
 	        
 public class Yaml {
     mutable _Foo: int = 1;
-	_Person: Person_Type = Person_Type();
+    _Person: Person_Type = Person_Type();
 	    
-	public Foo: int { get { _Foo }}
-	public Person: Person_Type { get { _Person }}
+    public Foo: int { get { _Foo }}
+    public Person: Person_Type { get { _Person }}
 	    
-	public class Person_Type {
-	    mutable _Name: string = "bar";
-	    mutable _Age: int = 30;
-	    mutable _Addr: Uri = Uri("http://1.com");
+    public class Person_Type {
+        mutable _Name: string = "bar";
+        mutable _Age: int = 30;
+        mutable _Addr: Uri = Uri("http://1.com");
 	            
-	    public Name: string { get { _Name }}
-	    public Age: int { get { _Age }}
-	    public Addr: Uri { get { _Addr }}
-	}
+        public Name: string { get { _Name }}
+        public Age: int { get { _Age }}
+        public Addr: Uri { get { _Addr }}
+    }
 }*/
 
     [MacroUsage (MacroPhase.BeforeInheritance, MacroTargets.Assembly)]
