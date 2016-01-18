@@ -65,7 +65,7 @@ public class Yaml {
 	    | Float { v: double; }
     
         public static ParseStr(str: string): Scalar {
-            active match (str) {
+            active match (str) {  
             | ValueParser.TimeSpan(x) => Scalar.TimeSpan(x)
             | ValueParser.Uri(x) => Scalar.Uri(x)
             | x => String(x)
@@ -99,6 +99,19 @@ public class Yaml {
                 }
             }
         }
+
+        public ValueAsExpr: PExpr {
+            get {
+                match (this) {
+                | Int(x) => <[ $x ]>
+                | String(x) => <[ $x ]>
+                | Bool(x) => <[ $x ]>
+                | TimeSpan(x) => <[ System.TimeSpan.FromMilliseconds($(x.TotalMilliseconds)) ]>
+                | Uri(x) => <[ Uri($(x.OriginalString)) ]>
+                | Float(x) => <[ $x ]>
+                }
+            }
+        }
     }    
         
     [Show]
@@ -122,8 +135,8 @@ public class Yaml {
         TransformScalar(builder: TypeBuilder, name: string, node: Scalar): void {
             def fieldType = PExpr.FromQualifiedIdentifier(builder.Manager, node.BoxedValue.GetType().FullName);
             def fieldName = $"_$name";
-            def defaultValue = node.BoxedValue.ToString();
-            builder.Define(<[decl: private mutable $(fieldName: usesite): $fieldType = $(defaultValue: usesite); ]>);
+            def defaultValue = node.ValueAsExpr;
+            builder.Define(<[decl: private mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
             builder.Define(<[decl: public $(name: usesite): $fieldType { get { this.$(fieldName: usesite) } } ]>);
         }
         

@@ -10,8 +10,11 @@ using nYaml;
 
 namespace TestConsole {
     [assembly: Yaml(Y4, <#
-        Person: 1
-        Foo: 2.2
+IntValue: 1
+FloatValue: 2.2
+StringValue: a string
+UriValue: http://domain.com
+TimeSpanValue: 1.00:00:05
         #>)];
 
     [Record]
@@ -24,10 +27,14 @@ namespace TestConsole {
         Main() : void
         {
             def y4 = Y4();
-            def p = y4.Person;
-            def foo = y4.Foo;
+            def intValue = y4.IntValue;
+            def floatValue = y4.FloatValue;
+            def stringValue = y4.StringValue;
+            def uriValue = y4.UriValue;
+            def timeSpanValue = y4.TimeSpanValue;
+
             WriteLine(y4.AstAsString);
-            WriteLine($"foo = $foo, p = $p");
+            WriteLine($"$intValue, $floatValue, $stringValue, $uriValue, $timeSpanValue");
             //WriteLine(GetLocals());
             
             _ = ReadLine();
