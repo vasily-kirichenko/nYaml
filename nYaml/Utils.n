@@ -16,11 +16,10 @@ namespace nYaml
             mutable r = false;
             if (Boolean.TryParse(text, out r)) Some(r) else None()
         }
-    //let (|Int|_|) = tryParseWith Int32.TryParse
-    //let (|Float|_|) = tryParseWith (fun x -> Double.TryParse(x, NumberStyles.Any, CultureInfo.InvariantCulture))
+
         public TimeSpan(text: string): option[TimeSpan] {
             mutable r: TimeSpan;
-            if (TimeSpan.TryParseExact(text, "d.HH:mm:ss", CultureInfo.InvariantCulture, out r))
+            if (TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out r))
                 Some(r)
             else None()
         }
@@ -30,15 +29,13 @@ namespace nYaml
 
         public Uri(text: string): option[Uri] {
             def schemas = ["http", "https", "ftp", "ftps", "sftp", "amqp", "file", "ssh", "tcp"];
-            schemas.TryPick(x => { 
-                    if (text.Trim().StartsWith(x + ":", StringComparison.InvariantCultureIgnoreCase)) {
-                        mutable uri: Uri;
-                        if (System.Uri.TryCreate(text, UriKind.Absolute, out uri))
-                            Some(uri)
-                        else None()
-                    }
-                    else None()
-                })
+            if (schemas.Exists(x => text.Trim().StartsWith(x + ":", StringComparison.InvariantCultureIgnoreCase))) {
+                mutable uri: Uri;
+                if (Uri.TryCreate(text, UriKind.Absolute, out uri))
+                    Some(uri)
+                else None()
+            }
+            else None()
         }
     }
 }
