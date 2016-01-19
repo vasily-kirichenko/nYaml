@@ -66,11 +66,9 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <MacroProjectReference Include="..\nYaml\nYaml.nproj">
-      <Name>nYaml</Name>
-      <Project>{4b175215-2386-4165-8ce8-1eab7afebca9}</Project>
-      <Private>False</Private>
-    </MacroProjectReference>
+    <Content Include="paket.references">
+      <SubType>Content</SubType>
+    </Content>
   </ItemGroup>
   <Import Project="$(Nemerle)\Nemerle.MSBuild.targets" />
   <!--
@@ -81,4 +79,15 @@
 	<Target Name="AfterBuild">
 	</Target>
 	-->
+  <Choose>
+    <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.6' Or $(TargetFrameworkVersion) == 'v4.6.1')">
+      <ItemGroup>
+        <Reference Include="SharpYaml">
+          <HintPath>..\packages\SharpYaml\lib\SharpYaml.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+      </ItemGroup>
+    </When>
+  </Choose>
 </Project>
