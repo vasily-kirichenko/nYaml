@@ -15,6 +15,7 @@ FloatValue: 2.2
 StringValue: a string
 UriValue: http://domain.com
 TimeSpanValue: 1.00:00:05
+AnotherIntValue: 22
         #>)];
 
     [Record]
@@ -27,6 +28,7 @@ TimeSpanValue: 1.00:00:05
         Main() : void
         {
             def y4 = Y4();
+            def anotherIntValue = y4.AnotherIntValue;
             def intValue = y4.IntValue;
             def floatValue = y4.FloatValue;
             def stringValue = y4.StringValue;

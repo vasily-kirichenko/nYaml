@@ -43,6 +43,11 @@
       <HintPath>C:\Program Files (x86)\Nemerle\net-4.0\Nemerle.ActivePatterns.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="SharpYaml, Version=1.5.3.30552, Culture=neutral, PublicKeyToken=1ced8108e942bc02">
+      <Name>SharpYaml</Name>
+      <AssemblyName>SharpYaml.dll</AssemblyName>
+      <HintPath>..\lib\NonPCL_SharpYaml\SharpYaml.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
@@ -102,15 +107,4 @@
 	<Target Name="AfterBuild">
 	</Target>
 	-->
-  <Choose>
-    <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.6' Or $(TargetFrameworkVersion) == 'v4.6.1')">
-      <ItemGroup>
-        <Reference Include="SharpYaml">
-          <HintPath>..\packages\SharpYaml\lib\SharpYaml.dll</HintPath>
-          <Private>True</Private>
-          <Paket>True</Paket>
-        </Reference>
-      </ItemGroup>
-    </When>
-  </Choose>
 </Project>

@@ -1,5 +1,1 @@
 FRAMEWORK: >= NET46
-NUGET
-  remote: https://www.nuget.org/api/v2
-  specs:
-    SharpYaml (1.5.3)
