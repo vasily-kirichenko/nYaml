@@ -18,6 +18,9 @@ TimeSpanValue: 1.00:00:05
 AnotherIntValue: 22
 Person:
   Age: 22
+AList:
+  - 1
+  - 2
         #>)];
 
     [Record]

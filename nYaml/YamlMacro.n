@@ -122,12 +122,12 @@ public class Yaml {
     }
         
     module Builder {
-        public Transform (builder: TypeBuilder, name: option[string], node: Node): void  {
+        public Transform (builder: TypeBuilder, name: option[string], node: Node): option[PExpr]  {
             match (name, node) {
-            | (Some(name), Scal(x)) => TransformScalar(builder, name, x)
+            | (Some(name), Scal(x)) => TransformScalar(builder, name, x); None()
             | (_, Map(m)) => TransformMap(builder, name, m)
-            //| (Some(name), List(l)) => TransformList(name, true, l)
-            | _ => ()
+            | (Some(name), List(l)) => TransformList(builder, name, l); None()
+            | _ => None()
             //| (None, _) => throw Exception("Only Maps are allowed at the root level.")
             }
         }
@@ -145,7 +145,7 @@ public class Yaml {
                 Transform(builder, Some(name), child);
         }
         
-        TransformMap(builder: TypeBuilder, name: option[string], children: list[string * Node]): void {
+        TransformMap(builder: TypeBuilder, name: option[string], children: list[string * Node]): option[PExpr] {
             match (name) {
             | Some (name) =>
                 def typeName = Macros.NewSymbol(name);
@@ -154,12 +154,78 @@ public class Yaml {
                 TransformChildren(mapTy, children);
                 mapTy.Compile();
                 def mapFieldName = $"_$name";
-                builder.Define(<[decl: private $(mapFieldName: usesite): $(typeName: name) = $(mapTy.Name: usesite)(); ]>);
-                builder.Define(<[decl: public $(name: usesite): $(typeName: name) { get { this.$(mapFieldName: usesite) } } ]>);
+                def typeExpr = <[ $(typeName: name) ]>;
+                builder.Define(<[decl: private $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
+                builder.Define(<[decl: public $(name: usesite): $typeExpr { get { this.$(mapFieldName: usesite) } } ]>);
+                Some(typeExpr);
             | None => 
-                TransformChildren(builder, children)
+                TransformChildren(builder, children);
+                None();
             }
         }
+        
+        TransformList(builder: TypeBuilder, name: string, children: list[Node]): void {
+            def childrenTypes = children.Map(x => Transform(builder, None(), x)).Choose(x => x);
+            
+            //let elements, elementType =
+            //    match elements |> Seq.groupBy (fun n -> n.MainType) |> Seq.map fst |> Seq.toList with
+            //    | [Some ty] -> elements, ty
+            //    | [None] ->
+            //        // Sequence of maps: https://github.com/fsprojects/FSharp.Configuration/issues/51
+            //        // TODOL Construct the type from all the elements (instead of only the first entry)
+            //        let headChildren = match children |> Seq.head with Map m -> m | _ -> failwith "expected a sequence of maps."
+
+            //        let childTypes, childInits = foldChildren readOnly headChildren
+            //        let eventField, event = generateChangedEvent()
+
+            //        let mapTy = ProvidedTypeDefinition(name + "_Item_Type", Some typeof<obj>, HideObjectMethods = true,
+            //                                           IsErased = false, SuppressRelocation = false)
+
+            //        let ctr = ProvidedConstructor([], InvokeCode = (fun [me] -> childInits me))
+            //        mapTy.AddMembers (ctr :> MemberInfo :: childTypes)
+            //        mapTy.AddMember eventField
+            //        mapTy.AddMember event
+            //        [{ MainType = Some (mapTy :> _)
+            //           Types = [mapTy :> MemberInfo]
+            //           Init = fun _ -> Expr.NewObject(ctr, []) }],
+            //        mapTy :> _
+            //    | types -> failwithf "List cannot contain elements of heterogeneous types (attempt to mix types: %A)."
+            //                         (types |> List.map (Option.map (fun x -> x.Name)))
+
+            //let propType = ProvidedTypeBuilder.MakeGenericType(typedefof<IList<_>>, [elementType])
+            //let ctrType = ProvidedTypeBuilder.MakeGenericType(typedefof<seq<_>>, [elementType])
+        
+            //let listCtr =
+            //    let meth = typeof<Helper>.GetMethod("CreateResizeArray")
+            //    ProvidedTypeBuilder.MakeGenericMethod(meth, [elementType])
+        
+            //let childTypes = elements |> List.collect (fun x -> x.Types)
+
+            //let initValue ty me =
+            //    Expr.Coerce(
+            //        Expr.Call(listCtr, [Expr.Coerce(Expr.NewArray(elementType, elements |> List.map (fun x -> x.Init me)), ctrType)]),
+            //        ty)
+
+            //if generateField then
+            //    let fieldType = ProvidedTypeBuilder.MakeGenericType(typedefof<ResizeArray<_>>, [elementType])
+            //    let field = ProvidedField("_" + name, fieldType)
+            
+            //    let prop = 
+            //        ProvidedProperty (name, propType, IsStatic=false, GetterCode = 
+            //            fun [me] -> Expr.Coerce(Expr.FieldGet(me, field), propType))
+
+            //    if not readOnly then 
+            //        prop.SetterCode <- fun [me; v] -> Expr.FieldSet(me, field, Expr.Coerce(Expr.Call(listCtr, [Expr.Coerce(v, ctrType)]), fieldType))
+
+            //    { MainType = Some fieldType
+            //      Types = childTypes @ [field :> MemberInfo; prop :> MemberInfo]
+            //      Init = fun me -> Expr.FieldSet(me, field, initValue fieldType me) }
+            //else
+            //    { MainType = Some propType
+            //      Types = childTypes
+            //      Init = initValue propType }
+       }
+
     }
 	
 	module YamlImpl {
