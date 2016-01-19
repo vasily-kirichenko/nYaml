@@ -155,7 +155,7 @@ public class Yaml {
                 mapTy.Compile();
                 def mapFieldName = $"_$name";
                 builder.Define(<[decl: private $(mapFieldName: usesite): $(typeName: name) = $(mapTy.Name: usesite)(); ]>);
-                builder.Define(<[decl: public $(mapTy.Name: usesite): $(typeName: name) { get { this.$(mapFieldName: usesite) } } ]>);
+                builder.Define(<[decl: public $(name: usesite): $(typeName: name) { get { this.$(mapFieldName: usesite) } } ]>);
             | None => 
                 TransformChildren(builder, children)
             }

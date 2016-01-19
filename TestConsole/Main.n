@@ -16,6 +16,8 @@ StringValue: a string
 UriValue: http://domain.com
 TimeSpanValue: 1.00:00:05
 AnotherIntValue: 22
+Person:
+  Age: 22
         #>)];
 
     [Record]
@@ -34,6 +36,7 @@ AnotherIntValue: 22
             def stringValue = y4.StringValue;
             def uriValue = y4.UriValue;
             def timeSpanValue = y4.TimeSpanValue;
+            def personAge = y4.Person.Age;
 
             WriteLine(y4.AstAsString);
             WriteLine($"$intValue, $floatValue, $stringValue, $uriValue, $timeSpanValue");
