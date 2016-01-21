@@ -83,10 +83,6 @@ public class Yaml {
             }
         }
             
-        public UnderlyingType: Type {
-            get { BoxedValue.GetType() }
-        }
-
         public BoxedValue: object {
             get {
                 match (this) {
@@ -112,6 +108,10 @@ public class Yaml {
                 }
             }
         }
+        
+        public UnderlyingType(builder: TypeBuilder): PExpr { 
+            PExpr.FromQualifiedIdentifier(builder.Manager, BoxedValue.GetType().FullName)
+        }
     }    
         
     [Show]
@@ -126,14 +126,13 @@ public class Yaml {
             match (name, node) {
             | (Some(name), Scal(x)) => TransformScalar(builder, name, x); None()
             | (_, Map(m)) => TransformMap(builder, name, m)
-            | (Some(name), List(l)) => TransformList(builder, name, l); None()
-            | _ => None()
-            //| (None, _) => throw Exception("Only Maps are allowed at the root level.")
+            | (Some(name), List(l)) => Some(TransformList(builder, name, l))
+            | (None, _) => throw Exception("Only Maps are allowed at the root level.")
             }
         }
         
         TransformScalar(builder: TypeBuilder, name: string, node: Scalar): void {
-            def fieldType = PExpr.FromQualifiedIdentifier(builder.Manager, node.BoxedValue.GetType().FullName);
+            def fieldType = node.UnderlyingType(builder);
             def fieldName = $"_$name";
             def defaultValue = node.ValueAsExpr;
             builder.Define(<[decl: private mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
@@ -142,7 +141,7 @@ public class Yaml {
         
         TransformChildren(builder: TypeBuilder, children: list[string * Node]): void {
             foreach ((name, child) in children)
-                Transform(builder, Some(name), child);
+                _ =  Transform(builder, Some(name), child)
         }
         
         TransformMap(builder: TypeBuilder, name: option[string], children: list[string * Node]): option[PExpr] {
@@ -164,33 +163,43 @@ public class Yaml {
             }
         }
         
-        TransformList(builder: TypeBuilder, name: string, children: list[Node]): void {
-            def childrenTypes = children.Map(x => Transform(builder, None(), x)).Choose(x => x);
+        TransformList(builder: TypeBuilder, name: string, children: list[Node]): PExpr {
+            def elementTypeExprs = children.Map(x => {
+                match (x: Node) {
+                | Scal(x) => Some(x.UnderlyingType(builder))
+                | Map(m) => TransformMap(builder, None(), m)
+                | List(l) => Some(TransformList(builder, (name + "_Items"), l))
+                }
+            });
             
-            //let elements, elementType =
-            //    match elements |> Seq.groupBy (fun n -> n.MainType) |> Seq.map fst |> Seq.toList with
-            //    | [Some ty] -> elements, ty
-            //    | [None] ->
-            //        // Sequence of maps: https://github.com/fsprojects/FSharp.Configuration/issues/51
-            //        // TODOL Construct the type from all the elements (instead of only the first entry)
-            //        let headChildren = match children |> Seq.head with Map m -> m | _ -> failwith "expected a sequence of maps."
+            def (elements, elementType) =
+                match (elementTypeExprs.Distinct().NToList()) {
+                | [Some(ty)] => (elementTypeExprs, ty)
+                | [None] =>
+                
+                    def headChildren = match (children.Head) { | Map(m) => m | _ => throw Exception("expected a sequence of maps.") };
+                    
+                    def mapTy = Transform ProvidedTypeDefinition(name + "_Item_Type", Some typeof<obj>, HideObjectMethods = true,
+                                                       IsErased = false, SuppressRelocation = false)
 
-            //        let childTypes, childInits = foldChildren readOnly headChildren
-            //        let eventField, event = generateChangedEvent()
+                    
+                    TransformChildren(builder, headChildren);
+                    let childTypes, childInits = foldChildren readOnly headChildren
 
-            //        let mapTy = ProvidedTypeDefinition(name + "_Item_Type", Some typeof<obj>, HideObjectMethods = true,
-            //                                           IsErased = false, SuppressRelocation = false)
+                    let mapTy = ProvidedTypeDefinition(name + "_Item_Type", Some typeof<obj>, HideObjectMethods = true,
+                                                       IsErased = false, SuppressRelocation = false)
 
-            //        let ctr = ProvidedConstructor([], InvokeCode = (fun [me] -> childInits me))
-            //        mapTy.AddMembers (ctr :> MemberInfo :: childTypes)
-            //        mapTy.AddMember eventField
-            //        mapTy.AddMember event
-            //        [{ MainType = Some (mapTy :> _)
-            //           Types = [mapTy :> MemberInfo]
-            //           Init = fun _ -> Expr.NewObject(ctr, []) }],
-            //        mapTy :> _
-            //    | types -> failwithf "List cannot contain elements of heterogeneous types (attempt to mix types: %A)."
-            //                         (types |> List.map (Option.map (fun x -> x.Name)))
+                    let ctr = ProvidedConstructor([], InvokeCode = (fun [me] -> childInits me))
+                    mapTy.AddMembers (ctr :> MemberInfo :: childTypes)
+                    mapTy.AddMember eventField
+                    mapTy.AddMember event
+                    [{ MainType = Some (mapTy :> _)
+                       Types = [mapTy :> MemberInfo]
+                       Init = fun _ -> Expr.NewObject(ctr, []) }],
+                    mapTy :> _
+                | types -> failwithf "List cannot contain elements of heterogeneous types (attempt to mix types: %A)."
+                                     (types |> List.map (Option.map (fun x -> x.Name)))
+                }
 
             //let propType = ProvidedTypeBuilder.MakeGenericType(typedefof<IList<_>>, [elementType])
             //let ctrType = ProvidedTypeBuilder.MakeGenericType(typedefof<seq<_>>, [elementType])
