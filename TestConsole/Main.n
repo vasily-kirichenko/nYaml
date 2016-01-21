@@ -23,27 +23,22 @@ AList:
   - 2
         #>)];
 
-    [Record]
-    class R {
-        public I: int
-    }
-        
     module Program
     {
         Main() : void
         {
             def y4 = Y4();
-            def anotherIntValue = y4.AnotherIntValue;
-            def intValue = y4.IntValue;
-            def floatValue = y4.FloatValue;
-            def stringValue = y4.StringValue;
-            def uriValue = y4.UriValue;
-            def timeSpanValue = y4.TimeSpanValue;
-            def personAge = y4.Person.Age;
+            //def anotherIntValue = y4.AnotherIntValue;
+            //def intValue = y4.IntValue;
+            //def floatValue = y4.FloatValue;
+            //def stringValue = y4.StringValue;
+            //def uriValue = y4.UriValue;
+            //def timeSpanValue = y4.TimeSpanValue;
+            //def personAge = y4.Person.Age;
             def intElem = y4.AList[0];
 
-            WriteLine(y4.AstAsString);
-            WriteLine($"$intValue, $floatValue, $stringValue, $uriValue, $timeSpanValue");
+            //WriteLine(y4.AstAsString);
+            //WriteLine($"$intValue, $floatValue, $stringValue, $uriValue, $timeSpanValue");
             //WriteLine(GetLocals());
             
             _ = ReadLine();

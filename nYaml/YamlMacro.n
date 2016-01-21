@@ -174,10 +174,12 @@ public class Yaml {
             
             def elemType = scalarChildren.Head.UnderlyingType(builder);
             def listFieldName = $"_$name";
-            builder.Define(<[decl: private $(listFieldName: usesite): System.Collections.Generic.List[$elemType] = 
-                                       new System.Collections.Generic.List[$elemType](); ]>);    
+            builder.Define(<[decl: private $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
+                                       System.Collections.Generic.List.[$elemType](); ]>);    
             
-            builder.Define(<[decl: public $(name: usesite): System.Collections.Generic.IList[$elemType] { get { this.$(listFieldName: usesite) }} ]>);
+            builder.Define(<[decl: public $(name: usesite): System.Collections.Generic.IList.[$elemType] { 
+                                       get { this.$(listFieldName: usesite) }
+                                   } ]>);
             
             
             //scalarChildren.Map(x => {
@@ -260,6 +262,7 @@ public class Yaml {
 	
 	module YamlImpl {
 		public Transform(typer: Typer, typeName: PExpr, text: PExpr): PExpr {
+		    //System.Diagnostics.Debugger.Launch();
 		    match (typeName, text) {
 		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(text: string) ]>) => { 
 		    def settings = SerializerSettings() <- 
