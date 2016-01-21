@@ -37,6 +37,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
+    <Reference Include="SharpYaml, Version=1.5.3.30552, Culture=neutral, PublicKeyToken=1ced8108e942bc02">
+      <Name>SharpYaml</Name>
+      <AssemblyName>SharpYaml.dll</AssemblyName>
+      <HintPath>..\lib\NonPCL_SharpYaml\SharpYaml.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>

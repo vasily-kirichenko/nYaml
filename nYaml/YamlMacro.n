@@ -265,7 +265,7 @@ public class Yaml {
 		    //System.Diagnostics.Debugger.Launch();
 		    match (typeName, text) {
 		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(text: string) ]>) => { 
-		    def settings = SerializerSettings() <- 
+		        def settings = SerializerSettings() <- 
 		        { EmitDefaultValues = true; 
 		          EmitTags = false; 
 		          SortKeyForMapping = false 

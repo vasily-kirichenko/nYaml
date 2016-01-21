@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Console;
 using System.Linq;
 using nYaml;
+using SharpYaml;
+using SharpYaml.Serialization;
 
 namespace TestConsole {
     [assembly: Yaml(Y4, <#
@@ -35,7 +37,24 @@ AList:
             //def uriValue = y4.UriValue;
             //def timeSpanValue = y4.TimeSpanValue;
             //def personAge = y4.Person.Age;
-            def intElem = y4.AList[0];
+            //def intElem = y4.AList[0];
+            
+            def serializer = Serializer();
+            def yaml = <#
+IntValue: 100
+FloatValue: 2.2
+StringValue: a string
+UriValue: http://domain.com
+TimeSpanValue: 1.00:00:05
+AnotherIntValue: 22
+Person:
+  Age: 22
+AList:
+  - 1
+  - 2
+#>;
+            def y42 = serializer.Deserialize.[Y4](System.IO.StringReader(yaml));
+            WriteLine($"IntValue(2) = $(y42.IntValue)");
 
             //WriteLine(y4.AstAsString);
             //WriteLine($"$intValue, $floatValue, $stringValue, $uriValue, $timeSpanValue");
