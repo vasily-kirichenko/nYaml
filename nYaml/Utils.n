@@ -38,4 +38,35 @@ namespace nYaml
             else None()
         }
     }
+    
+    using SharpYaml.Serialization;
+    using Nemerle.Compiler;
+    using SharpYaml;
+    using Macros.Core;
+    
+    [Record, Show]
+    struct Pos {
+        public Line: int;
+        public Col: int
+    }
+    
+    [Record, Show]
+    struct Range {
+        public Start: Pos;
+        public End: Pos;
+    }
+    
+    class ObjectSerializerBackend: Serializers.DefaultObjectSerializerBackend
+    {
+        ranges: List[Range] = List();
+        public Ranges: IReadOnlyList[Range] { get { ranges }}
+        
+        public override ReadDictionaryItem(ctx: ref ObjectContext, keyValueType: KeyValuePair[Type, Type]): KeyValuePair[object, object] {
+            def e = ctx.Reader.Peek();
+            def range = Range(Pos(e.Start.Line, e.Start.Column), Pos(e.End.Line, e.End.Column));
+            ranges.Add(range);
+            Message.Hint($"*** $range");
+            base.ReadDictionaryItem(ref ctx, keyValueType)
+        }
+    }
 }

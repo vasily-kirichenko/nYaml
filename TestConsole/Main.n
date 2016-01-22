@@ -11,7 +11,7 @@ using SharpYaml;
 using SharpYaml.Serialization;
 
 namespace TestConsole {
-    [assembly: Yaml(Y4, <#
+/*    [assembly: Yaml(Y4, <#
 IntValue: 1
 FloatValue: 2.2
 StringValue: a string
@@ -23,10 +23,27 @@ Person:
 AList:
   - 1
   - 2
+        #>)];*/
+        
+    [assembly: Yaml(Y4, <#
+IntValue: 1
+FloatValue: 2.2
+StringValue: a string
+AnotherIntValue: 22
+Person:
+  Age: 22
+AList: 
+  - 1
+  - 2
         #>)];
 
     module Program
     {
+        [Record]
+        class R {
+            public F: int
+        }
+        
         Main() : void
         {
             def y4 = Y4();
@@ -44,9 +61,7 @@ AList:
 IntValue: 100
 FloatValue: 2.2
 StringValue: a string
-UriValue: http://domain.com
-TimeSpanValue: 1.00:00:05
-AnotherIntValue: 22
+AnotherIntValue: 220
 Person:
   Age: 22
 AList:

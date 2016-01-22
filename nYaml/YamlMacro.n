@@ -136,8 +136,11 @@ public class Yaml {
             def fieldType = node.UnderlyingType(builder);
             def fieldName = $"_$name";
             def defaultValue = node.ValueAsExpr;
-            builder.Define(<[decl: private mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
-            builder.Define(<[decl: public $(name: usesite): $fieldType { get { this.$(fieldName: usesite) } } ]>);
+            builder.Define(<[decl: mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
+            builder.Define(<[decl: public $(name: usesite): $fieldType { 
+                                       get { $(fieldName: usesite) } 
+                                       set { $(fieldName: usesite) = value }
+                                   } ]>);
         }
         
         TransformChildren(builder: TypeBuilder, children: list[string * Node]): void {
@@ -154,8 +157,11 @@ public class Yaml {
                 mapTy.Compile();
                 def mapFieldName = $"_$name";
                 def typeExpr = <[ $(typeName: name) ]>;
-                builder.Define(<[decl: private $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
-                builder.Define(<[decl: public $(name: usesite): $typeExpr { get { this.$(mapFieldName: usesite) } } ]>);
+                builder.Define(<[decl: mutable $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
+                builder.Define(<[decl: public $(name: usesite): $typeExpr { 
+                                           get { $(mapFieldName: usesite) } 
+                                           set { $(mapFieldName: usesite) = value }
+                                       } ]>);
                 Some(typeExpr);
             | None => 
                 TransformChildren(builder, children);
@@ -177,7 +183,7 @@ public class Yaml {
             builder.Define(<[decl: private $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
                                        System.Collections.Generic.List.[$elemType](); ]>);    
             
-            builder.Define(<[decl: public $(name: usesite): System.Collections.Generic.IList.[$elemType] { 
+            builder.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
                                        get { this.$(listFieldName: usesite) }
                                    } ]>);
             
@@ -268,7 +274,8 @@ public class Yaml {
 		        def settings = SerializerSettings() <- 
 		        { EmitDefaultValues = true; 
 		          EmitTags = false; 
-		          SortKeyForMapping = false 
+		          SortKeyForMapping = false;
+		          ObjectSerializerBackend = ObjectSerializerBackend()
 		        };
                 def serializer = Serializer(settings);
                 def node = serializer.Deserialize(StringReader(text));
