@@ -34,48 +34,64 @@ namespace Macros.Core
               .Map(ctor => ctor.GetParameters().Map(extractFieldName));
         }
         
-        IsSupportedType(ty: TypeBuilder): bool {
+        variant SupportedType {
+            | Variant
+            | Record
+        }
+        
+        GetSupportedType(ty: TypeBuilder): option[SupportedType] {
             match (ty) {
             | _ when ty.IsDelegate with n = "delegates"
             | _ when ty.IsEnum with n = "enums"
             | _ when ty.IsInterface with n = "interfaces"
             | _ when ty.IsModule with n = "modules" => 
                 Message.Error(ty.Location, $"The Show macro does not support $n."); 
-                false
-            | _ => true
+                None()
+            //| _ when ty.HasAttribute => 
+            | _ when !ty.GetVariantOptions().IsEmpty => Some(SupportedType.Variant())
+            | _ => Some(SupportedType.Record())
             }
         }
         
-        public Transform(typer: Typer, ty: TypeBuilder): void {
-            when (IsSupportedType(ty)) {
-                def existsHandmadeToString(opt: TypeBuilder) {
-                    opt.GetDirectMembers()
-                       .OfType.[IMethod]()
-                       .Any(x => x.Name == "ToString" && x.Header.Parameters.IsEmpty)
-                }
-                
-                foreach (opt when !existsHandmadeToString(opt) in ty.GetVariantOptions())
-                {
-                    when (GetRecordCtorParams(typer, opt) is Some(pars)) {
-                        def fieldsExpr = pars.Fold(<[]>, (f, acc) => {
-                                match (acc) {
-                                | <[]> => <[ $(f: usesite).ToString() ]>
-                                | _ => <[ $acc + ", " + $(f: usesite).ToString() ]>
-                                }
-                        });
-                    
-                        def body =
-                            match (fieldsExpr) {
-                            | <[]> => <[ $(opt.Name) ]>
-                            | _ => <[ $(opt.Name) + "(" + $fieldsExpr + ")" ]>
-                            };
-                           
-                        opt.Define(<[decl:
-                            public override ToString(): string {
-                                $body
+        
+        DefineToString(typer: Typer, tb: TypeBuilder): void {
+            def existsHandmadeToString =
+                tb.GetDirectMembers()
+                  .OfType.[IMethod]()
+                  .Any(x => x.Name == "ToString" && x.Header.Parameters.IsEmpty);
+
+            when (!existsHandmadeToString)
+                when (GetRecordCtorParams(typer, tb) is Some(pars)) {
+                    def fieldsExpr = pars.Fold(<[]>, (f, acc) => {
+                            match (acc) {
+                            | <[]> => <[ $(f: usesite).ToString() ]>
+                            | _ => <[ $acc + ", " + $(f: usesite).ToString() ]>
                             }
-                            ]>);
-                    }
+                    });
+                    
+                    def body =
+                        match (fieldsExpr) {
+                        | <[]> => <[ $(tb.Name) ]>
+                        | _ => <[ $(tb.Name) + "(" + $fieldsExpr + ")" ]>
+                        };
+                           
+                    tb.Define(<[decl:
+                        public override ToString(): string {
+                            $body
+                        }
+                        ]>);
+                }
+        }
+        
+        public Transform(typer: Typer, ty: TypeBuilder): void {
+            match (GetSupportedType(ty)) {
+            | Some(st) =>
+                match (st) {
+                | Variant =>
+                    foreach (opt in ty.GetVariantOptions())
+                        DefineToString(typer, opt)
+                | Record => 
+                    DefineToString(typer, ty)
                 }
             }
         }
