@@ -50,23 +50,50 @@ namespace nYaml
         public Col: int
     }
     
-    [Record, Show]
+    [Record, Show, ExtensionPattern(pos1 ==> pos2 = Range(pos1, pos2))]
     struct Range {
         public Start: Pos;
         public End: Pos;
     }
     
+    type MapNode = KeyValuePair[object, object];
+    
     class ObjectSerializerBackend: Serializers.DefaultObjectSerializerBackend
     {
-        ranges: List[Range] = List();
-        public Ranges: IReadOnlyList[Range] { get { ranges }}
+        ranges: Dictionary[object, Range] = Dictionary();
+        public Ranges: IReadOnlyDictionary[object, Range] { get { ranges }}
+        
+        GetCurrentRange[T](ctx: ObjectContext): Range {
+            def e = ctx.Reader.Peek();
+            Range(Pos(e.Start.Line, e.Start.Column), Pos(e.End.Line, e.End.Column));
+        }
         
         public override ReadDictionaryItem(ctx: ref ObjectContext, keyValueType: KeyValuePair[Type, Type]): KeyValuePair[object, object] {
-            def e = ctx.Reader.Peek();
-            def range = Range(Pos(e.Start.Line, e.Start.Column), Pos(e.End.Line, e.End.Column));
-            ranges.Add(range);
-            Message.Hint($"*** $range");
-            base.ReadDictionaryItem(ref ctx, keyValueType)
+            def range = GetCurrentRange(ctx);
+            def r = base.ReadDictionaryItem(ref ctx, keyValueType);
+            ranges[r] = range;
+            r
+        }
+        
+        public override ReadCollectionItem(ctx: ref ObjectContext, value: object, itemType: Type): object {
+            def range = GetCurrentRange(ctx);
+            def r = base.ReadCollectionItem(ref ctx, value, itemType);
+            ranges[r] = range;
+            r
+        }
+        
+        public override ReadMemberName(ctx: ref ObjectContext, memberName: string): string {
+            def range = GetCurrentRange(ctx);
+            def r = base.ReadMemberName(ref ctx, memberName);
+            ranges[r] = range;
+            r
+        }
+        
+        public override ReadMemberValue(ctx: ref ObjectContext, memberDescriptor: IMemberDescriptor, memberValue: object, memberType: Type) : object {
+            def range = GetCurrentRange(ctx);
+            def r = base.ReadMemberValue(ref ctx, memberDescriptor, memberValue, memberType);
+            ranges[r] = range;
+            r
         }
     }
 }

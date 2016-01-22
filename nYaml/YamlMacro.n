@@ -116,7 +116,7 @@ public class Yaml {
         
     [Show]
     variant Node {
-        public Location: Location;
+        public mutable Location: option[Range];
         | Scal { v: Scalar }
         | List { children: list[Node] }
         | Map { nodes: list[string * Node] }
@@ -170,13 +170,20 @@ public class Yaml {
         }
         
         TransformList(builder: TypeBuilder, name: string, children: list[Node]): void {
-            when (children.Exists(x => match (x) { Node.Scal(_) => false | _ => true }))
-                Message.FatalError(children.Head.Location, "List of scalars are supported only.");
-
+            def loc() {
+                children.Head.Location
+                    .Map(loc => Location(builder.Location, loc.Start.Line, loc.Start.Col))
+                    .WithDefault(builder.Location);
+            }
+            
+            when (children.Exists(x => match (x) { Node.Scal(_) => false | _ => true })) {
+                Message.FatalError(loc(), "List of scalars are supported only.");
+            }
+            
             def scalarChildren = children.OfType.[Node.Scal]().Map(x => x.v);
                 
             when (scalarChildren.Map(x => x.BoxedValue.GetType()).Distinct().Count() > 1)
-                Message.FatalError(children.Head.Location, "Heterogeneous lists are not supported.");
+                Message.FatalError(loc(), "Heterogeneous lists are not supported.");
             
             def elemType = scalarChildren.Head.UnderlyingType(builder);
             def listFieldName = $"_$name";
@@ -263,7 +270,6 @@ public class Yaml {
             //      Types = childTypes
             //      Init = initValue propType }
        }
-
     }
 	
 	module YamlImpl {
@@ -271,11 +277,12 @@ public class Yaml {
 		    //System.Diagnostics.Debugger.Launch();
 		    match (typeName, text) {
 		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(text: string) ]>) => { 
+		        def serializerBackend = ObjectSerializerBackend();
 		        def settings = SerializerSettings() <- 
 		        { EmitDefaultValues = true; 
 		          EmitTags = false; 
 		          SortKeyForMapping = false;
-		          ObjectSerializerBackend = ObjectSerializerBackend()
+		          ObjectSerializerBackend = serializerBackend
 		        };
                 def serializer = Serializer(settings);
                 def node = serializer.Deserialize(StringReader(text));
@@ -284,12 +291,17 @@ public class Yaml {
                     Message.Hint($"Node: $n, type = $(n.GetType())");
                     match (n) {
                     | l is List[object] => Node.List (l.Map(loop))
-                    | d is Dictionary[object, object] => 
-                        Node.Map (d.NToList().Choose(p => {
-                            match (p.Key) {
-                            | key is string => Some(key, loop(p.Value))
-                            | _ => None()
-                            }}))
+                    | d is Dictionary[object, object] =>
+                        def loc = serializerBackend.Ranges.TryFind(d);
+                        def n = 
+                            Node.Map (d.NToList().Choose(p => {
+                                match (p.Key) {
+                                | key is string => Some(key, loop(p.Value))
+                                | _ => None()
+                                }
+                            }));
+                        n.Location = loc;
+                        n
                     | scalar =>
                         Node.Scal (Scalar.FromObj(scalar))
                     }
@@ -301,7 +313,7 @@ public class Yaml {
 		        {
 		            def builder = typer.Env.Define(<[ decl: public sealed class $typeName {} ]>);
 		            builder.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
-		            Builder.Transform(builder, None(), node);
+		            _ = Builder.Transform(builder, None(), node);
 		            builder.Compile();
 		        });
 		        <[]>

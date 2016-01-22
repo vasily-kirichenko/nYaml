@@ -27,6 +27,18 @@ namespace Utils
         }
     }
     
+    public class DictionaryExtentions {
+        public static TryFind[K, V](this dic: IDictionary[K, V], key: K): option[V] {
+            mutable v;
+            if (dic.TryGetValue(key, out v)) Some(v) else None()
+        }
+
+        public static TryFind[K, V](this dic: IReadOnlyDictionary[K, V], key: K): option[V] {
+            mutable v;
+            if (dic.TryGetValue(key, out v)) Some(v) else None()
+        }
+    }
+    
     public class OptionExtensions
     {
         public static OfNull[T](this x: T): option[T] where T: class {
