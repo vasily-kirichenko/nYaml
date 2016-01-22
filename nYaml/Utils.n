@@ -50,10 +50,10 @@ namespace nYaml
         public Col: int
     }
     
-    [Record, Show, ExtensionPattern(pos1 ==> pos2 = Range(pos1, pos2))]
+    [Record, Show]
     struct Range {
-        public Start: Pos;
-        public End: Pos;
+        public Start: TextPoint;
+        public End: TextPoint;
     }
     
     type MapNode = KeyValuePair[object, object];
@@ -61,17 +61,23 @@ namespace nYaml
     class ObjectSerializerBackend: Serializers.DefaultObjectSerializerBackend
     {
         ranges: Dictionary[object, Range] = Dictionary();
+        baseLoc: Location;
         public Ranges: IReadOnlyDictionary[object, Range] { get { ranges }}
+        
+        public this (baseLoc: Location) {
+            this.baseLoc = baseLoc;
+        }
         
         GetCurrentRange[T](ctx: ObjectContext): Range {
             def e = ctx.Reader.Peek();
-            Range(Pos(e.Start.Line, e.Start.Column), Pos(e.End.Line, e.End.Column));
+            Range(TextPoint(baseLoc.Begin.Line + e.Start.Line, e.Start.Column), 
+                  TextPoint(baseLoc.Begin.Line + e.End.Line, e.End.Column));
         }
         
         public override ReadDictionaryItem(ctx: ref ObjectContext, keyValueType: KeyValuePair[Type, Type]): KeyValuePair[object, object] {
             def range = GetCurrentRange(ctx);
             def r = base.ReadDictionaryItem(ref ctx, keyValueType);
-            ranges[r] = range;
+            ranges[r.Value] = range;
             r
         }
         

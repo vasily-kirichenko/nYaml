@@ -34,7 +34,7 @@ Person:
   Age: 22
 AList: 
   - 1
-  - 2
+  - foo
         #>)];
 
     module Program
