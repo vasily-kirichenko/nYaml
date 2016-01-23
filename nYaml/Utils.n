@@ -51,11 +51,12 @@ namespace nYaml
     
     [Record, Show]
     struct Range {
-        public Start: TextPoint;
-        public End: TextPoint;
+        public Begin: TextPoint;
+        public End: TextPoint
     }
     
-    type MapNode = KeyValuePair[object, object];
+    type KV[K, V] = KeyValuePair[K, V];
+    type MapNode = KV[object, object];
     
     class ObjectSerializerBackend: Serializers.DefaultObjectSerializerBackend
     {
@@ -73,30 +74,30 @@ namespace nYaml
                   TextPoint(baseLoc.Begin.Line + e.End.Line, e.End.Column));
         }
         
-        public override ReadDictionaryItem(ctx: ref ObjectContext, keyValueType: KeyValuePair[Type, Type]): KeyValuePair[object, object] {
+        public override ReadDictionaryItem(ctx: ref ObjectContext, kvTy: KV[Type, Type]): KV[object, object] {
             def range = GetCurrentRange(ctx);
-            def r = base.ReadDictionaryItem(ref ctx, keyValueType);
+            def r = base.ReadDictionaryItem(ref ctx, kvTy);
             ranges[r.Value] = range;
             r
         }
         
-        public override ReadCollectionItem(ctx: ref ObjectContext, value: object, itemType: Type): object {
+        public override ReadCollectionItem(ctx: ref ObjectContext, v: object, itemTy: Type): object {
             def range = GetCurrentRange(ctx);
-            def r = base.ReadCollectionItem(ref ctx, value, itemType);
+            def r = base.ReadCollectionItem(ref ctx, v, itemTy);
             ranges[r] = range;
             r
         }
         
-        public override ReadMemberName(ctx: ref ObjectContext, memberName: string): string {
+        public override ReadMemberName(ctx: ref ObjectContext, mn: string): string {
             def range = GetCurrentRange(ctx);
-            def r = base.ReadMemberName(ref ctx, memberName);
+            def r = base.ReadMemberName(ref ctx, mn);
             ranges[r] = range;
             r
         }
         
-        public override ReadMemberValue(ctx: ref ObjectContext, memberDescriptor: IMemberDescriptor, memberValue: object, memberType: Type) : object {
+        public override ReadMemberValue(ctx: ref ObjectContext, desc: IMemberDescriptor, value: object, ty: Type) : object {
             def range = GetCurrentRange(ctx);
-            def r = base.ReadMemberValue(ref ctx, memberDescriptor, memberValue, memberType);
+            def r = base.ReadMemberValue(ref ctx, desc, value, ty);
             ranges[r] = range;
             r
         }

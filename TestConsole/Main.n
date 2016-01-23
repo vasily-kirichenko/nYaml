@@ -31,6 +31,7 @@ IntValue: 1
 FloatValue: 2.2
 StringValue: a string 
 AnotherIntValue: 22
+BoolValue: true
 Person:
   Age: 22
 AList: 

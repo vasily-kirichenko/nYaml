@@ -53,7 +53,54 @@ public class Yaml {
 	public macro Yaml(name: PExpr, text: PExpr)
 	{
 		def typer = Macros.ImplicitCTX();
-		YamlImpl.Transform(typer, name, text);
+		_ = YamlImpl.Transform(typer, name, text)
+	}
+	
+	module YamlImpl {
+		public Transform(typer: Typer, typeName: PExpr, txt: PExpr): PExpr {
+		    //_ = Debugger.Launch();
+		    match (typeName, txt) {
+		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(text: string) ]>) => { 
+		        def serializerBackend = ObjectSerializerBackend(txt.Location);
+		        def settings = SerializerSettings() <- 
+		        { EmitDefaultValues = true; 
+		          EmitTags = false; 
+		          SortKeyForMapping = false;
+		          ObjectSerializerBackend = serializerBackend
+		        };
+                def serializer = Serializer(settings);
+                def node = serializer.Deserialize(StringReader(text));
+            
+                def loop(n: object): Node {
+                    //Message.Hint($"Node: $n: $(n.GetType().Name)");
+                    def r = serializerBackend.Ranges.TryFind(n);
+                    match (n) {
+                    | l is List[object] => Node.List(l.Map(loop), r)
+                    | d is Dictionary[object, object] =>
+                        Node.Map (d.NToList().Choose(p => {
+                            match (p.Key) {
+                            | key is string => Some(key, loop(p.Value))
+                            | _ => None()
+                            }
+                        }), r)
+                    | s => Node.Scal (Scalar.Infer(s), r)
+                    }
+                }
+            
+                def node = loop(node);
+                def nodeAsString = node.ToString();
+                Util.locate(typeName.Location,
+		        {
+		            def builder = typer.Env.Define(<[ decl: public sealed class $typeName {} ]>);
+		            builder.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
+		            _ = Builder.Transform(builder, None(), node);
+		            builder.Compile();
+		        });
+		        <[]>
+			  }
+			| _ => Message.FatalError($"Name must be a symbol and text must be a string, but got $(typeName.GetType()), $(txt.GetType())")
+		    }
+		}
 	}
 	
 	[Show]
@@ -69,11 +116,12 @@ public class Yaml {
             active match (str) {  
             | ValueParser.TimeSpan(x) => Scalar.TimeSpan(x)
             | ValueParser.Uri(x) => Scalar.Uri(x)
+            | ValueParser.Bool(x) => Scalar.Bool(x)
             | x => String(x)
             }
         }
         
-	    public static FromObj(obj: object): Scalar {
+	    public static Infer(obj: object): Scalar {
 	        match (obj) {
             | null => String("")
             | b is System.Boolean => Bool(b)
@@ -117,26 +165,44 @@ public class Yaml {
         
     [Show]
     variant Node {
-        public mutable Location: option[Range] = None();
-        | Scal { v: Scalar }
-        | List { children: list[Node] }
-        | Map { nodes: list[string * Node] }
+        | Scal { v: Scalar; r: option[Range] }
+        | List { elements: list[Node]; r: option[Range] }
+        | Map { nodes: list[string * Node]; r: option[Range] }
+        Location: option[Range] {
+            get {
+                match (this) {
+                | Scal(_, x) => x
+                | List(_, x) => x
+                | Map(_, x) => x
+                }
+            }
+        }
+        public GetLocation(parentBuilder: TypeBuilder): Location {
+            Location
+                .Map(loc => Location(parentBuilder.Location.FileIndex, loc.Begin, loc.End))
+                .WithDefault(parentBuilder.Location)
+        }
+    }
+    
+    variant ListType {
+        | Scalars
+        | Maps
     }
         
     module Builder {
         public Transform (tb: TypeBuilder, name: option[string], node: Node): option[PExpr]  {
             match (name, node) {
-            | (Some(name), Scal(x)) => TransformScalar(tb, name, x); None()
-            | (_, Map(m)) => TransformMap(tb, name, m)
-            | (Some(name), List(_) as l) => TransformList(tb, name, l); None()
+            | (Some(name), Scal(_, _) as scal) => TransformScalar(tb, name, scal); None()
+            | (_, Map(_, _) as m) => TransformMap(tb, name, m)
+            | (Some(name), List(_,_) as l) => TransformList(tb, name, l); None()
             | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
             }
         }
         
-        TransformScalar(tb: TypeBuilder, name: string, node: Scalar): void {
-            def fieldType = node.UnderlyingType(tb);
+        TransformScalar(tb: TypeBuilder, name: string, node: Node.Scal): void {
+            def fieldType = node.v.UnderlyingType(tb);
             def fieldName = $"_$name";
-            def defaultValue = node.ValueAsExpr;
+            def defaultValue = node.v.ValueAsExpr;
             tb.Define(<[decl: mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
             tb.Define(<[decl: public $(name: usesite): $fieldType { 
                                        get { $(fieldName: usesite) } 
@@ -149,12 +215,12 @@ public class Yaml {
                 _ =  Transform(tb, Some(name), child)
         }
         
-        TransformMap(tb: TypeBuilder, name: option[string], children: list[string * Node]): option[PExpr] {
+        TransformMap(tb: TypeBuilder, name: option[string], map: Node.Map): option[PExpr] {
             match (name) {
             | Some (name) =>
                 def typeName = Macros.NewSymbol(name);
                 def mapTy = tb.DefineNestedType(<[decl: public sealed class $typeName { } ]>);
-                TransformChildren(mapTy, children);
+                TransformChildren(mapTy, map.nodes);
                 mapTy.Compile();
                 def mapFieldName = $"_$name";
                 def typeExpr = <[ $(typeName: name) ]>;
@@ -165,40 +231,35 @@ public class Yaml {
                                        } ]>);
                 Some(typeExpr);
             | None => 
-                TransformChildren(tb, children);
+                TransformChildren(tb, map.nodes);
                 None();
             }
         }
         
         TransformList(tb: TypeBuilder, name: string, list: Node.List): void {
             //Debugger.Launch();
-            def children = list.children;
-            def preciseLoc = lazy (
-                list.Location
-                    .Map(loc => Location(tb.Location.FileIndex, loc.Start, loc.End))
-                    .WithDefault(tb.Location));
+            def childrenNodes = list.elements;
             
-            when (children.Exists(x => match (x) { Node.Scal(_) => false | _ => true })) {
+            when (childrenNodes.Exists(x => !(x is Node.Scal))) {
                 Message.Error(tb.Location, "List of scalars are supported only.");
-                Message.Error(preciseLoc, "List of scalars are supported only.");
+                Message.Error(list.GetLocation(tb), "List of scalars are supported only.");
             }
             
-            def scalarChildren = children.OfType.[Node.Scal]().Map(x => x.v);
+            def scalarChildren = childrenNodes.OfType.[Node.Scal]().Map(x => x.v);
                 
             def (elemType, elemValues) =
                 if (scalarChildren.Map(x => x.BoxedValue.GetType()).Distinct().Count() > 1) {
-                    Message.Warning(tb.Location, "Because list contains values of heterogenius types, it's generated as List[object]");
-                    Message.Warning(preciseLoc, "Because list contains values of heterogenius types, it's generated as List[object]");
+                    foreach(loc in [tb.Location, list.GetLocation(tb)])
+                        Message.Warning(loc, "Because the list contains values of heterogeneous types, it's generated as List[object]");
                     (<[ object ]>,
                      scalarChildren.Map(x => <[ $(x.ValueAsExpr) : object ]>))
                 }
                 else {
-                    (scalarChildren.Head.UnderlyingType(tb),
-                     scalarChildren.Map(_.ValueAsExpr))
+                    (scalarChildren.Head.UnderlyingType(tb), scalarChildren.Map(_.ValueAsExpr))
                 };
                 
             def listFieldName = $"_$name";
-            //def elementValues = scalarChildren.Map(_.ValueAsExpr);
+            
             tb.Define(<[decl: $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
                                   System.Collections.Generic.List.[$elemType]([..$elemValues]); ]>);    
             
@@ -206,131 +267,10 @@ public class Yaml {
                                        get { $(listFieldName: usesite) }
                               } ]>);
                               
-            //scalarChildren.Map(x => {
-            //    match (x) {
-            //    | Scal(x) =>
-            //        x.ValueAsExpr    
-                
-            //        Some(x.UnderlyingType(builder))
-                    
-            //    | _ => Message.FatalError(x.Location, "List of scalars are supported only.")
-            //    //| Map(m) => TransformMap(builder, None(), m)
-            //    //| List(l) => Some(TransformList(builder, (name + "_Items"), l))
-            //    }
-            //});
-            
-            //def (elements, elementType) =
-            //    match (elementTypeExprs.Distinct().NToList()) {
-            //    | [Some(ty)] => (elementTypeExprs, ty)
-            //    | [None] =>
-                
-            //        def headChildren = match (children.Head) { | Map(m) => m | _ => throw Exception("expected a sequence of maps.") };
-                    
-            //        def mapTy = Transform ProvidedTypeDefinition(name + "_Item_Type", Some typeof<obj>, HideObjectMethods = true,
-            //                                           IsErased = false, SuppressRelocation = false)
-
-                    
-            //        TransformChildren(builder, headChildren);
-            //        let childTypes, childInits = foldChildren readOnly headChildren
-
-            //        let mapTy = ProvidedTypeDefinition(name + "_Item_Type", Some typeof<obj>, HideObjectMethods = true,
-            //                                           IsErased = false, SuppressRelocation = false)
-
-            //        let ctr = ProvidedConstructor([], InvokeCode = (fun [me] -> childInits me))
-            //        mapTy.AddMembers (ctr :> MemberInfo :: childTypes)
-            //        mapTy.AddMember eventField
-            //        mapTy.AddMember event
-            //        [{ MainType = Some (mapTy :> _)
-            //           Types = [mapTy :> MemberInfo]
-            //           Init = fun _ -> Expr.NewObject(ctr, []) }],
-            //        mapTy :> _
-            //    | types -> failwithf "List cannot contain elements of heterogeneous types (attempt to mix types: %A)."
-            //                         (types |> List.map (Option.map (fun x -> x.Name)))
-            //    }
-
-            //let propType = ProvidedTypeBuilder.MakeGenericType(typedefof<IList<_>>, [elementType])
-            //let ctrType = ProvidedTypeBuilder.MakeGenericType(typedefof<seq<_>>, [elementType])
-        
-            //let listCtr =
-            //    let meth = typeof<Helper>.GetMethod("CreateResizeArray")
-            //    ProvidedTypeBuilder.MakeGenericMethod(meth, [elementType])
-        
-            //let childTypes = elements |> List.collect (fun x -> x.Types)
-
-            //let initValue ty me =
-            //    Expr.Coerce(
-            //        Expr.Call(listCtr, [Expr.Coerce(Expr.NewArray(elementType, elements |> List.map (fun x -> x.Init me)), ctrType)]),
-            //        ty)
-
-            //if generateField then
-            //    let fieldType = ProvidedTypeBuilder.MakeGenericType(typedefof<ResizeArray<_>>, [elementType])
-            //    let field = ProvidedField("_" + name, fieldType)
-            
-            //    let prop = 
-            //        ProvidedProperty (name, propType, IsStatic=false, GetterCode = 
-            //            fun [me] -> Expr.Coerce(Expr.FieldGet(me, field), propType))
-
-            //    if not readOnly then 
-            //        prop.SetterCode <- fun [me; v] -> Expr.FieldSet(me, field, Expr.Coerce(Expr.Call(listCtr, [Expr.Coerce(v, ctrType)]), fieldType))
-
-            //    { MainType = Some fieldType
-            //      Types = childTypes @ [field :> MemberInfo; prop :> MemberInfo]
-            //      Init = fun me -> Expr.FieldSet(me, field, initValue fieldType me) }
-            //else
-            //    { MainType = Some propType
-            //      Types = childTypes
-            //      Init = initValue propType }
        }
     }
-	
-	module YamlImpl {
-		public Transform(typer: Typer, typeName: PExpr, txt: PExpr): PExpr {
-		    //_ = Debugger.Launch();
-		    match (typeName, txt) {
-		    | (<[ $(PExpr.Ref(typeName)) ]>, <[ $(text: string) ]>) => { 
-		        def serializerBackend = ObjectSerializerBackend(txt.Location);
-		        def settings = SerializerSettings() <- 
-		        { EmitDefaultValues = true; 
-		          EmitTags = false; 
-		          SortKeyForMapping = false;
-		          ObjectSerializerBackend = serializerBackend
-		        };
-                def serializer = Serializer(settings);
-                def node = serializer.Deserialize(StringReader(text));
-            
-                def loop(n: object) {
-                    //Message.Hint($"Node: $n: $(n.GetType().Name)");
-                    def node =
-                        match (n) {
-                        | list is List[object] => Node.List(list.Map(loop))
-                        | dic is Dictionary[object, object] =>
-                            Node.Map (dic.NToList().Choose(p => {
-                                match (p.Key) {
-                                | key is string => Some(key, loop(p.Value))
-                                | _ => None()
-                                }
-                            }))
-                        | scalar => Node.Scal (Scalar.FromObj(scalar))
-                        }
-                    def loc = serializerBackend.Ranges.TryFind(n);
-                    //Message.Hint($"Found loc = $loc for node = $node");
-                    node.Location = loc;
-                    node
-                }
-            
-                def node = loop(node);
-                def nodeAsString = node.ToString();
-                Util.locate(typeName.Location,
-		        {
-		            def builder = typer.Env.Define(<[ decl: public sealed class $typeName {} ]>);
-		            builder.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
-		            _ = Builder.Transform(builder, None(), node);
-		            builder.Compile();
-		        });
-		        <[]>
-			  }
-			| _ => Message.FatalError($"Name must be a symbol and text must be a string, but got $(typeName.GetType().ToString()), $(txt.ToString())")
-		    }
-		}
-	}
+    
+    module ListBuilder {
+        
+    }
 }
