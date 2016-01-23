@@ -3,6 +3,7 @@ using Nemerle.Text;
 using Nemerle.IO;
 using Nemerle.Utility;
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Console;
 using System.Linq;
@@ -28,13 +29,13 @@ AList:
     [assembly: Yaml(Y4, <#
 IntValue: 1
 FloatValue: 2.2
-StringValue: a string
+StringValue: a string 
 AnotherIntValue: 22
 Person:
   Age: 22
 AList: 
   - 1
-  - foo
+  - 2
         #>)];
 
     module Program
@@ -47,17 +48,9 @@ AList:
         Main() : void
         {
             def y4 = Y4();
-            //def anotherIntValue = y4.AnotherIntValue;
-            //def intValue = y4.IntValue;
-            //def floatValue = y4.FloatValue;
-            //def stringValue = y4.StringValue;
-            //def uriValue = y4.UriValue;
-            //def timeSpanValue = y4.TimeSpanValue;
-            //def personAge = y4.Person.Age;
-            //def intElem = y4.AList[0];
+            WriteLine($"AList = $(y4.AList.NToList())");
             
-            def serializer = Serializer();
-            def yaml = <#
+/*            def yaml = <#
 IntValue: 100
 FloatValue: 2.2
 StringValue: a string
@@ -68,8 +61,9 @@ AList:
   - 1
   - 2
 #>;
-            def y42 = serializer.Deserialize.[Y4](System.IO.StringReader(yaml));
-            WriteLine($"IntValue(2) = $(y42.IntValue)");
+            def serializer = Serializer();
+            def y42 = serializer.Deserialize.[Y4](StringReader(yaml));
+            WriteLine($"IntValue(2) = $(y42.IntValue)");*/
 
             //WriteLine(y4.AstAsString);
             //WriteLine($"$intValue, $floatValue, $stringValue, $uriValue, $timeSpanValue");

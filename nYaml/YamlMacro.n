@@ -192,14 +192,14 @@ public class Yaml {
             
             def elemType = scalarChildren.Head.UnderlyingType(tb);
             def listFieldName = $"_$name";
-            tb.Define(<[decl: private $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
-                                       System.Collections.Generic.List.[$elemType](); ]>);    
+            def elementValues = scalarChildren.Map(_.ValueAsExpr);
+            tb.Define(<[decl: $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
+                                  System.Collections.Generic.List.[$elemType]([..$elementValues]); ]>);    
             
             tb.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
-                                       get { this.$(listFieldName: usesite) }
-                                   } ]>);
-            
-            
+                                       get { $(listFieldName: usesite) }
+                              } ]>);
+                              
             //scalarChildren.Map(x => {
             //    match (x) {
             //    | Scal(x) =>
