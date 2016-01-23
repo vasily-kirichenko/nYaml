@@ -124,75 +124,78 @@ public class Yaml {
     }
         
     module Builder {
-        public Transform (builder: TypeBuilder, name: option[string], node: Node): option[PExpr]  {
+        public Transform (tb: TypeBuilder, name: option[string], node: Node): option[PExpr]  {
             match (name, node) {
-            | (Some(name), Scal(x)) => TransformScalar(builder, name, x); None()
-            | (_, Map(m)) => TransformMap(builder, name, m)
-            | (Some(name), List(_) as l) => TransformList(builder, name, l); None()
-            | (None, _) => throw Exception("Only Maps are allowed at the root level.")
+            | (Some(name), Scal(x)) => TransformScalar(tb, name, x); None()
+            | (_, Map(m)) => TransformMap(tb, name, m)
+            | (Some(name), List(_) as l) => TransformList(tb, name, l); None()
+            | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
             }
         }
         
-        TransformScalar(builder: TypeBuilder, name: string, node: Scalar): void {
-            def fieldType = node.UnderlyingType(builder);
+        TransformScalar(tb: TypeBuilder, name: string, node: Scalar): void {
+            def fieldType = node.UnderlyingType(tb);
             def fieldName = $"_$name";
             def defaultValue = node.ValueAsExpr;
-            builder.Define(<[decl: mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
-            builder.Define(<[decl: public $(name: usesite): $fieldType { 
+            tb.Define(<[decl: mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
+            tb.Define(<[decl: public $(name: usesite): $fieldType { 
                                        get { $(fieldName: usesite) } 
                                        set { $(fieldName: usesite) = value }
                                    } ]>);
         }
         
-        TransformChildren(builder: TypeBuilder, children: list[string * Node]): void {
+        TransformChildren(tb: TypeBuilder, children: list[string * Node]): void {
             foreach ((name, child) in children)
-                _ =  Transform(builder, Some(name), child)
+                _ =  Transform(tb, Some(name), child)
         }
         
-        TransformMap(builder: TypeBuilder, name: option[string], children: list[string * Node]): option[PExpr] {
+        TransformMap(tb: TypeBuilder, name: option[string], children: list[string * Node]): option[PExpr] {
             match (name) {
             | Some (name) =>
                 def typeName = Macros.NewSymbol(name);
-                def mapTy = builder.DefineNestedType(<[decl: public sealed class $typeName { } ]>);
+                def mapTy = tb.DefineNestedType(<[decl: public sealed class $typeName { } ]>);
                 TransformChildren(mapTy, children);
                 mapTy.Compile();
                 def mapFieldName = $"_$name";
                 def typeExpr = <[ $(typeName: name) ]>;
-                builder.Define(<[decl: mutable $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
-                builder.Define(<[decl: public $(name: usesite): $typeExpr { 
+                tb.Define(<[decl: mutable $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
+                tb.Define(<[decl: public $(name: usesite): $typeExpr { 
                                            get { $(mapFieldName: usesite) } 
                                            set { $(mapFieldName: usesite) = value }
                                        } ]>);
                 Some(typeExpr);
             | None => 
-                TransformChildren(builder, children);
+                TransformChildren(tb, children);
                 None();
             }
         }
         
-        TransformList(builder: TypeBuilder, name: string, list: Node.List): void {
+        TransformList(tb: TypeBuilder, name: string, list: Node.List): void {
             //Debugger.Launch();
             def children = list.children;
-            def loc = lazy (
+            def preciseLoc = lazy (
                 list.Location
-                    .Map(loc => Location(builder.Location.FileIndex, loc.Start, loc.End))
-                    .WithDefault(builder.Location));
+                    .Map(loc => Location(tb.Location.FileIndex, loc.Start, loc.End))
+                    .WithDefault(tb.Location));
             
             when (children.Exists(x => match (x) { Node.Scal(_) => false | _ => true })) {
-                Message.FatalError(loc, "List of scalars are supported only.");
+                Message.Error(tb.Location, "List of scalars are supported only.");
+                Message.Error(preciseLoc, "List of scalars are supported only.");
             }
             
             def scalarChildren = children.OfType.[Node.Scal]().Map(x => x.v);
                 
-            when (scalarChildren.Map(x => x.BoxedValue.GetType()).Distinct().Count() > 1)
-                Message.FatalError(loc, "Heterogeneous lists are not supported.");
+            when (scalarChildren.Map(x => x.BoxedValue.GetType()).Distinct().Count() > 1) {
+                Message.Error(tb.Location, "Heterogeneous lists are not supported.");
+                Message.Error(preciseLoc, "Heterogeneous lists are not supported.");
+            }
             
-            def elemType = scalarChildren.Head.UnderlyingType(builder);
+            def elemType = scalarChildren.Head.UnderlyingType(tb);
             def listFieldName = $"_$name";
-            builder.Define(<[decl: private $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
+            tb.Define(<[decl: private $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
                                        System.Collections.Generic.List.[$elemType](); ]>);    
             
-            builder.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
+            tb.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
                                        get { this.$(listFieldName: usesite) }
                                    } ]>);
             
@@ -288,12 +291,9 @@ public class Yaml {
 		        };
                 def serializer = Serializer(settings);
                 def node = serializer.Deserialize(StringReader(text));
-                foreach(p in serializerBackend.Ranges) {
-                    Message.Hint($"Dict: $(p.Key): $(p.Key.GetType().Name) => $(p.Value): $(p.Value.GetType().Name)")
-                }
             
                 def loop(n: object) {
-                    Message.Hint($"Node: $n: $(n.GetType().Name)");
+                    //Message.Hint($"Node: $n: $(n.GetType().Name)");
                     def node =
                         match (n) {
                         | list is List[object] => Node.List(list.Map(loop))
@@ -307,7 +307,7 @@ public class Yaml {
                         | scalar => Node.Scal (Scalar.FromObj(scalar))
                         }
                     def loc = serializerBackend.Ranges.TryFind(n);
-                    Message.Hint($"Found loc = $loc for node = $node");
+                    //Message.Hint($"Found loc = $loc for node = $node");
                     node.Location = loc;
                     node
                 }
