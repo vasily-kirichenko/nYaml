@@ -185,16 +185,22 @@ public class Yaml {
             
             def scalarChildren = children.OfType.[Node.Scal]().Map(x => x.v);
                 
-            when (scalarChildren.Map(x => x.BoxedValue.GetType()).Distinct().Count() > 1) {
-                Message.Error(tb.Location, "Heterogeneous lists are not supported.");
-                Message.Error(preciseLoc, "Heterogeneous lists are not supported.");
-            }
-            
-            def elemType = scalarChildren.Head.UnderlyingType(tb);
+            def (elemType, elemValues) =
+                if (scalarChildren.Map(x => x.BoxedValue.GetType()).Distinct().Count() > 1) {
+                    Message.Warning(tb.Location, "Because list contains values of heterogenius types, it's generated as List[object]");
+                    Message.Warning(preciseLoc, "Because list contains values of heterogenius types, it's generated as List[object]");
+                    (<[ object ]>,
+                     scalarChildren.Map(x => <[ $(x.ValueAsExpr) : object ]>))
+                }
+                else {
+                    (scalarChildren.Head.UnderlyingType(tb),
+                     scalarChildren.Map(_.ValueAsExpr))
+                };
+                
             def listFieldName = $"_$name";
-            def elementValues = scalarChildren.Map(_.ValueAsExpr);
+            //def elementValues = scalarChildren.Map(_.ValueAsExpr);
             tb.Define(<[decl: $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
-                                  System.Collections.Generic.List.[$elemType]([..$elementValues]); ]>);    
+                                  System.Collections.Generic.List.[$elemType]([..$elemValues]); ]>);    
             
             tb.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
                                        get { $(listFieldName: usesite) }
