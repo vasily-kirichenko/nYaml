@@ -161,7 +161,7 @@ public class Yaml {
         }
     }
         
-    [Record]
+    [Record, Show]
     class NamedNode {
         public Name: string;
         public Node: Node
