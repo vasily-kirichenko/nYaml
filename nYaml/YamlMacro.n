@@ -91,7 +91,7 @@ public class Yaml {
                 def nodeAsString = node.ToString();
                 Util.locate(typeName.Location,
 		        {
-		            def builder = typer.Env.Define(<[ decl: public sealed class $typeName {} ]>);
+		            def builder = typer.Env.Define(<[ decl: [Record] public sealed class $typeName {} ]>);
 		            builder.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
 		            _ = Builder.Transform(builder, None(), node);
 		            builder.Compile();
@@ -177,31 +177,25 @@ public class Yaml {
         | Map { nodes: MapElements }
         
         public GetLocation(parentBuilder: TypeBuilder): Location {
-            Range
-                .Map(loc => Location(parentBuilder.Location.FileIndex, loc.Begin, loc.End))
-                .WithDefault(parentBuilder.Location)
+            Range.Map(loc => Location(parentBuilder.Location.FileIndex, loc.Begin, loc.End))
+                 .WithDefault(parentBuilder.Location)
         }
     }
     
     module Builder {
-        public Transform (tb: TypeBuilder, name: option[string], node: Node): option[PExpr]  {
+        public Transform (tb: TypeBuilder, name: option[string], node: Node): PExpr  {
             match (name, node) {
-            | (Some(name), Scal(_) as scal) => TransformScalar(tb, name, scal); None()
+            | (Some(name), Scal(_) as scal) => TransformScalar(tb, name, scal)
             | (_, Map(_) as m) => TransformMap(tb, name, m)
-            | (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l); None()
+            | (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l)
             | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
             }
         }
         
-        TransformScalar(tb: TypeBuilder, name: string, node: Node.Scal): void {
+        TransformScalar(tb: TypeBuilder, name: string, node: Node.Scal): PExpr {
             def fieldType = node.v.UnderlyingTypeExpr(tb);
-            def fieldName = $"_$name";
-            def defaultValue = node.v.ValueAsExpr();
-            tb.Define(<[decl: mutable $(fieldName: usesite): $fieldType = $defaultValue; ]>);
-            tb.Define(<[decl: public $(name: usesite): $fieldType { 
-                                       get { $(fieldName: usesite) } 
-                                       set { $(fieldName: usesite) = value }
-                                   } ]>);
+            tb.Define(<[decl: public $(name: usesite): $fieldType; ]>);
+            node.v.ValueAsExpr()
         }
         
         TransformChildren(tb: TypeBuilder, children: list[NamedNode]): void {
@@ -209,21 +203,26 @@ public class Yaml {
                 _ =  Transform(tb, Some(node.Name), node.Node)
         }
         
-        TransformMap(tb: TypeBuilder, name: option[string], map: Node.Map): option[PExpr] {
+        public GenMapType(parentTb: TypeBuilder, name: string): TypeBuilder {
+            def typeName = Macros.NewSymbol(name);
+            def mapTy = parentTb.DefineNestedType(<[decl: [Record] public sealed class $typeName { } ]>);
+            def mapFieldName = $"_$name";
+            def typeExpr = <[ $(typeName: name) ]>;
+            parentTb.Define(<[decl: mutable $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
+            parentTb.Define(<[decl: public $(name: usesite): $typeExpr { 
+                                        get { $(mapFieldName: usesite) } 
+                                        set { $(mapFieldName: usesite) = value }
+                                    } ]>);
+            mapTy
+        }
+        
+        TransformMap(tb: TypeBuilder, name: option[string], map: Node.Map): PExpr {
             match (name) {
             | Some (name) =>
-                def typeName = Macros.NewSymbol(name);
-                def mapTy = tb.DefineNestedType(<[decl: public sealed class $typeName { } ]>);
-                TransformChildren(mapTy, map.nodes);
-                mapTy.Compile();
-                def mapFieldName = $"_$name";
-                def typeExpr = <[ $(typeName: name) ]>;
-                tb.Define(<[decl: mutable $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
-                tb.Define(<[decl: public $(name: usesite): $typeExpr { 
-                                           get { $(mapFieldName: usesite) } 
-                                           set { $(mapFieldName: usesite) = value }
-                                       } ]>);
-                Some(typeExpr);
+                def mapTb = GenMapType(tb, name);
+                TransformChildren(mapTb, map.nodes);
+                mapTb.Compile();
+                <[ $(mapTb.Name: usesite) ]>
             | None => 
                 TransformChildren(tb, map.nodes);
                 None();
@@ -245,27 +244,27 @@ public class Yaml {
             }
         }
         
-        GetCommonType(tb: TypeBuilder, scalars: list[Scalar]): PExpr {
+        GetCommonType(tb: TypeBuilder, locs: list[Location], name: string, scalars: list[Scalar]): PExpr {
             match (scalars.Map(x => x.UnderlyingType()).Distinct().NToList()) {
             | [_] => scalars.Head.UnderlyingTypeExpr(tb)
             | _ => 
-                Message.Warning(tb.Location, $"Common type for $scalars was inferred as object.");
+                foreach(loc in locs) Message.Warning(loc, $"Common type for $name: $scalars was inferred as object.");
                 <[ object ]>
             }
         }
         
         public Transform(tb: TypeBuilder, name: string, list: Node.List): void {
+            def locs = [tb.Location, list.GetLocation(tb)];
             def message(f: Location * string -> void, msg) {
-                f(tb.Location, msg);
-                f(list.GetLocation(tb), msg);
+                foreach(loc in locs) f(loc, msg)
             }
             
             match (GetListKind(tb, list)) {
             | ListKind.Scalars(elements) =>
                 when (list.elements.Exists(x => !(x is Node.Scal)))
-                    message(Message.Error, "List of scalars are supported only.");
+                    message(Message.Error, "Lists of scalars are supported only.");
             
-                def elemType = GetCommonType(tb, elements);
+                def elemType = GetCommonType(tb, locs, name, elements);
                 def elemValues = elements.Map(x => <[ $(x.ValueAsExpr()) : $elemType ]>);
                 def listFieldName = $"_$name";
             
@@ -273,14 +272,14 @@ public class Yaml {
                                       System.Collections.Generic.List.[$elemType]([..$elemValues]); ]>);    
             
                 tb.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
-                                           get { $(listFieldName: usesite) }
+                                      get { $(listFieldName: usesite) }
                                   } ]>);
             | ListKind.Maps(elements) =>
                 //Debugger.Launch();
                 def allElementsFlatList = elements.SelectMany(x => x);
                 when (allElementsFlatList.Exists(x => !(x.Node is Node.Scal)))
                     message(Message.Error, "Map elements of lists must contain scalars only.");
-                    
+                def uniqueNames = allElementsFlatList.Map(x => x.Name).Distinct().NToList();    
                 def typesByName =
                     allElementsFlatList
                         .Grouping(x => (x.Name, x))
@@ -288,7 +287,7 @@ public class Yaml {
                             def scalars = 
                                 nodesWithSameName.Value.Map(_.Node).OfType.[Node.Scal]().Map(_.v);
                                 
-                            def commonType = GetCommonType(tb, scalars);
+                            def commonType = GetCommonType(tb, locs, name, scalars);
                             def commonType =
                                 if (nodesWithSameName.Value.Count() == elements.Length) commonType
                                 else <[ option[$commonType] ]>;
@@ -296,8 +295,13 @@ public class Yaml {
                         })
                         .ToDictionary(x => x[0], x => x[1]);
                 message(Message.Hint, $"List of maps \"$name\": $(typesByName.Map(p => $\"$(p.Key) => $(p.Value)\")))");
+                def mapTb = Builder.GenMapType(tb, name);
+                foreach(name in uniqueNames){
+                    def fieldType = typesByName[name];
+                    mapTb.Define(<[decl: public $(name: usesite): $fieldType; ]>);
+                }
+                mapTb.Compile();
             }
-                              
        }
     }
 }

@@ -12,20 +12,6 @@ using SharpYaml;
 using SharpYaml.Serialization;
 
 namespace TestConsole {
-/*    [assembly: Yaml(Y4, <#
-IntValue: 1
-FloatValue: 2.2
-StringValue: a string
-UriValue: http://domain.com
-TimeSpanValue: 1.00:00:05
-AnotherIntValue: 22
-Person:
-  Age: 22
-AList:
-  - 1
-  - 2
-        #>)];*/
-        
     [assembly: Yaml(Y4, <#
 IntValue: 1
 FloatValue: 2.2
