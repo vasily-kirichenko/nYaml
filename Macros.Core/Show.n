@@ -63,8 +63,8 @@ namespace Macros.Core
                 when (GetRecordCtorParams(typer, tb) is Some(pars)) {
                     def fieldsExpr = pars.Fold(<[]>, (f, acc) => {
                             match (acc) {
-                            | <[]> => <[ $(f: usesite).ToString() ]>
-                            | _ => <[ $acc + ", " + $(f: usesite).ToString() ]>
+                            | <[]> => <[ this.$(f: usesite).ToString() ]>
+                            | _ => <[ $acc + ", " + this.$(f: usesite).ToString() ]>
                             }
                     });
                     
