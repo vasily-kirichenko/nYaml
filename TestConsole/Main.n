@@ -43,14 +43,21 @@ AList:
     module Program
     {
         [Record]
-        class R {
-            public F: int
+        variant V {
+            public shared: int;
+            | Case1 { i: int }
+            public GetShared(): (int * int) {
+                match (Case1(2, 3)) {
+                | Case1(i) as c1 => (i, c1.shared)
+                }
+            }
         }
         
         Main() : void
         {
             def y4 = Y4();
-            WriteLine($"AList = $(y4.AList.NToList())");
+            WriteLine(y4.AstAsString);
+            //WriteLine($"AList = $(y4.AList.NToList())");
             
 /*            def yaml = <#
 IntValue: 100

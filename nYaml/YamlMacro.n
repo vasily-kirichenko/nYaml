@@ -75,15 +75,15 @@ public class Yaml {
                     //Message.Hint($"Node: $n: $(n.GetType().Name)");
                     def r = serializerBackend.Ranges.TryFind(n);
                     match (n) {
-                    | l is List[object] => Node.List(l.Map(loop), r)
+                    | l is List[object] => Node.List(r, l.Map(loop))
                     | d is Dictionary[object, object] =>
-                        Node.Map (d.NToList().Choose(p => {
+                        Node.Map (r, d.NToList().Choose(p => {
                             match (p.Key) {
                             | key is string => Some(key, loop(p.Value))
                             | _ => None()
                             }
-                        }), r)
-                    | s => Node.Scal (ScalarOps.Infer(s), r)
+                        }))
+                    | s => Node.Scal (r, ScalarOps.Infer(s))
                     }
                 }
             
@@ -161,22 +161,15 @@ public class Yaml {
         }
     }
         
-    [Show]
+    [Record, Show]
     variant Node {
-        | Scal { v: Scalar; r: option[Range] }
-        | List { elements: list[Node]; r: option[Range] }
-        | Map { nodes: list[string * Node]; r: option[Range] }
-        Location: option[Range] {
-            get {
-                match (this) {
-                | Scal(_, x) => x
-                | List(_, x) => x
-                | Map(_, x) => x
-                }
-            }
-        }
+        public Range: option[Range];
+        | Scal { v: Scalar }
+        | List { elements: list[Node] }
+        | Map { nodes: list[string * Node] }
+        
         public GetLocation(parentBuilder: TypeBuilder): Location {
-            Location
+            Range
                 .Map(loc => Location(parentBuilder.Location.FileIndex, loc.Begin, loc.End))
                 .WithDefault(parentBuilder.Location)
         }
@@ -190,9 +183,9 @@ public class Yaml {
     module Builder {
         public Transform (tb: TypeBuilder, name: option[string], node: Node): option[PExpr]  {
             match (name, node) {
-            | (Some(name), Scal(_, _) as scal) => TransformScalar(tb, name, scal); None()
-            | (_, Map(_, _) as m) => TransformMap(tb, name, m)
-            | (Some(name), List(_,_) as l) => TransformList(tb, name, l); None()
+            | (Some(name), Scal(_) as scal) => TransformScalar(tb, name, scal); None()
+            | (_, Map(_) as m) => TransformMap(tb, name, m)
+            | (Some(name), List(_) as l) => TransformList(tb, name, l); None()
             | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
             }
         }
