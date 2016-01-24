@@ -34,6 +34,14 @@ AnotherIntValue: 22
 BoolValue: true
 Person:
   Age: 22
+ListOfMaps:
+  - Name: name1
+    Age: 33
+    Weight: 60.2
+  - Name: name2
+    Age: 44
+    Weight: 50
+    Pet: 1
 AList: 
   - 1
   - 2.0

@@ -79,7 +79,7 @@ public class Yaml {
                     | d is Dictionary[object, object] =>
                         Node.Map (r, d.NToList().Choose(p => {
                             match (p.Key) {
-                            | key is string => Some(key, loop(p.Value))
+                            | key is string => Some(NamedNode(key, loop(p.Value)))
                             | _ => None()
                             }
                         }))
@@ -114,7 +114,7 @@ public class Yaml {
 	}
     
 	module ScalarOps {
-        public static ParseStr(str: string): Scalar {
+        public ParseStr(str: string): Scalar {
             active match (str) {  
             | ValueParser.TimeSpan(x) => Scalar.TimeSpan(x)
             | ValueParser.Uri(x) => Scalar.Uri(x)
@@ -123,7 +123,7 @@ public class Yaml {
             }
         }
         
-	    public static Infer(obj: object): Scalar {
+	    public Infer(obj: object): Scalar {
 	        match (obj) {
             | null => Scalar.String("")
             | b is System.Boolean => Scalar.Bool(b)
@@ -161,12 +161,20 @@ public class Yaml {
         }
     }
         
+    [Record]
+    class NamedNode {
+        public Name: string;
+        public Node: Node
+    }
+    
+    type MapElements = list[NamedNode];
+    
     [Record, Show]
     variant Node {
         public Range: option[Range];
         | Scal { v: Scalar }
         | List { elements: list[Node] }
-        | Map { nodes: list[string * Node] }
+        | Map { nodes: MapElements }
         
         public GetLocation(parentBuilder: TypeBuilder): Location {
             Range
@@ -175,17 +183,12 @@ public class Yaml {
         }
     }
     
-    variant ListType {
-        | Scalars
-        | Maps
-    }
-        
     module Builder {
         public Transform (tb: TypeBuilder, name: option[string], node: Node): option[PExpr]  {
             match (name, node) {
             | (Some(name), Scal(_) as scal) => TransformScalar(tb, name, scal); None()
             | (_, Map(_) as m) => TransformMap(tb, name, m)
-            | (Some(name), List(_) as l) => TransformList(tb, name, l); None()
+            | (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l); None()
             | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
             }
         }
@@ -201,9 +204,9 @@ public class Yaml {
                                    } ]>);
         }
         
-        TransformChildren(tb: TypeBuilder, children: list[string * Node]): void {
-            foreach ((name, child) in children)
-                _ =  Transform(tb, Some(name), child)
+        TransformChildren(tb: TypeBuilder, children: list[NamedNode]): void {
+            foreach (node in children)
+                _ =  Transform(tb, Some(node.Name), node.Node)
         }
         
         TransformMap(tb: TypeBuilder, name: option[string], map: Node.Map): option[PExpr] {
@@ -226,42 +229,75 @@ public class Yaml {
                 None();
             }
         }
-        
-        TransformList(tb: TypeBuilder, name: string, list: Node.List): void {
-            //Debugger.Launch();
-            def childrenNodes = list.elements;
-            
-            when (childrenNodes.Exists(x => !(x is Node.Scal))) {
-                Message.Error(tb.Location, "List of scalars are supported only.");
-                Message.Error(list.GetLocation(tb), "List of scalars are supported only.");
-            }
-            
-            def scalarChildren = childrenNodes.OfType.[Node.Scal]().Map(x => x.v);
-                
-            def (elemType, elemValues) =
-                if (scalarChildren.Map(x => x.UnderlyingType()).Distinct().Count() > 1) {
-                    foreach(loc in [tb.Location, list.GetLocation(tb)])
-                        Message.Warning(loc, "Because the list contains values of heterogeneous types, it's generated as List[object]");
-                    (<[ object ]>,
-                     scalarChildren.Map(x => <[ $(x.ValueAsExpr()) : object ]>))
-                }
-                else {
-                    (scalarChildren.Head.UnderlyingTypeExpr(tb), scalarChildren.Map(_.ValueAsExpr()))
-                };
-                
-            def listFieldName = $"_$name";
-            
-            tb.Define(<[decl: $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
-                                  System.Collections.Generic.List.[$elemType]([..$elemValues]); ]>);    
-            
-            tb.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
-                                       get { $(listFieldName: usesite) }
-                              } ]>);
-                              
-       }
     }
     
     module ListBuilder {
+        variant ListKind {
+            | Scalars { elements: list[Scalar] }
+            | Maps { elements: list[MapElements] }
+        }
         
+        GetListKind(tb: TypeBuilder, list: Node.List): ListKind {
+            match (list) {
+            | _ when list.elements.All(_ is Node.Scal) => ListKind.Scalars(list.elements.OfType.[Node.Scal]().Map(_.v))
+            | _ when list.elements.All(_ is Node.Map) => ListKind.Maps(list.elements.OfType.[Node.Map]().Map(_.nodes))
+            | _ => Message.FatalError(list.GetLocation(tb), "All list elements must be either scalars or maps")
+            }
+        }
+        
+        GetCommonType(tb: TypeBuilder, scalars: list[Scalar]): PExpr {
+            match (scalars.Map(x => x.UnderlyingType()).Distinct().NToList()) {
+            | [_] => scalars.Head.UnderlyingTypeExpr(tb)
+            | _ => 
+                Message.Warning(tb.Location, $"Common type for $scalars was inferred as object.");
+                <[ object ]>
+            }
+        }
+        
+        public Transform(tb: TypeBuilder, name: string, list: Node.List): void {
+            def message(f: Location * string -> void, msg) {
+                f(tb.Location, msg);
+                f(list.GetLocation(tb), msg);
+            }
+            
+            match (GetListKind(tb, list)) {
+            | ListKind.Scalars(elements) =>
+                when (list.elements.Exists(x => !(x is Node.Scal)))
+                    message(Message.Error, "List of scalars are supported only.");
+            
+                def elemType = GetCommonType(tb, elements);
+                def elemValues = elements.Map(x => <[ $(x.ValueAsExpr()) : $elemType ]>);
+                def listFieldName = $"_$name";
+            
+                tb.Define(<[decl: $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
+                                      System.Collections.Generic.List.[$elemType]([..$elemValues]); ]>);    
+            
+                tb.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
+                                           get { $(listFieldName: usesite) }
+                                  } ]>);
+            | ListKind.Maps(elements) =>
+                //Debugger.Launch();
+                def allElementsFlatList = elements.SelectMany(x => x);
+                when (allElementsFlatList.Exists(x => !(x.Node is Node.Scal)))
+                    message(Message.Error, "Map elements of lists must contain scalars only.");
+                    
+                def typesByName =
+                    allElementsFlatList
+                        .Grouping(x => (x.Name, x))
+                        .Select(nodesWithSameName => {
+                            def scalars = 
+                                nodesWithSameName.Value.Map(_.Node).OfType.[Node.Scal]().Map(_.v);
+                                
+                            def commonType = GetCommonType(tb, scalars);
+                            def commonType =
+                                if (nodesWithSameName.Value.Count() == elements.Length) commonType
+                                else <[ option[$commonType] ]>;
+                            (nodesWithSameName.Key, commonType)
+                        })
+                        .ToDictionary(x => x[0], x => x[1]);
+                message(Message.Hint, $"List of maps \"$name\": $(typesByName.Map(p => $\"$(p.Key) => $(p.Value)\")))");
+            }
+                              
+       }
     }
 }
