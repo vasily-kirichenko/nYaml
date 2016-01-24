@@ -91,10 +91,11 @@ public class Yaml {
                 def nodeAsString = node.ToString();
                 Util.locate(typeName.Location,
 		        {
-		            def builder = typer.Env.Define(<[ decl: [Record] public sealed class $typeName {} ]>);
-		            builder.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
-		            _ = Builder.Transform(builder, None(), node);
-		            builder.Compile();
+		            def tb = typer.Env.Define(<[ decl: [Record] public sealed class $typeName {} ]>);
+		            tb.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
+		            def ctorArgs = Builder.Transform(tb, None(), node);
+		            tb.Define(<[ decl: this() { this($ctorArgs) } ]>);
+		            tb.Compile();
 		        });
 		        <[]>
 			  }
@@ -186,8 +187,8 @@ public class Yaml {
         public Transform (tb: TypeBuilder, name: option[string], node: Node): PExpr  {
             match (name, node) {
             | (Some(name), Scal(_) as scal) => TransformScalar(tb, name, scal)
-            | (_, Map(_) as m) => TransformMap(tb, name, m)
-            | (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l)
+            | (_, Map(_) as m) => TransformMap(tb, name, m.nodes)
+            //| (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l)
             | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
             }
         }
@@ -198,34 +199,27 @@ public class Yaml {
             node.v.ValueAsExpr()
         }
         
-        TransformChildren(tb: TypeBuilder, children: list[NamedNode]): void {
-            foreach (node in children)
-                _ =  Transform(tb, Some(node.Name), node.Node)
+        TransformChildren(tb: TypeBuilder, children: list[NamedNode]): list[PExpr] {
+            children.Map(x => Transform(tb, Some(x.Name), x.Node))
         }
         
         public GenMapType(parentTb: TypeBuilder, name: string): TypeBuilder {
             def typeName = Macros.NewSymbol(name);
-            def mapTy = parentTb.DefineNestedType(<[decl: [Record] public sealed class $typeName { } ]>);
-            def mapFieldName = $"_$name";
+            def mapTb = parentTb.DefineNestedType(<[decl: [Record] public sealed class $typeName { } ]>);
             def typeExpr = <[ $(typeName: name) ]>;
-            parentTb.Define(<[decl: mutable $(mapFieldName: usesite): $typeExpr = $(mapTy.Name: usesite)(); ]>);
-            parentTb.Define(<[decl: public $(name: usesite): $typeExpr { 
-                                        get { $(mapFieldName: usesite) } 
-                                        set { $(mapFieldName: usesite) = value }
-                                    } ]>);
-            mapTy
+            parentTb.Define(<[decl: public $(name: usesite): $typeExpr; ]>);
+            mapTb
         }
         
-        TransformMap(tb: TypeBuilder, name: option[string], map: Node.Map): PExpr {
+        TransformMap(tb: TypeBuilder, name: option[string], children: list[NamedNode]): PExpr {
             match (name) {
-            | Some (name) =>
-                def mapTb = GenMapType(tb, name);
-                TransformChildren(mapTb, map.nodes);
-                mapTb.Compile();
-                <[ $(mapTb.Name: usesite) ]>
-            | None => 
-                TransformChildren(tb, map.nodes);
-                None();
+            | Some (name) => 
+                def tb = GenMapType(tb, name);
+                def ctorArgs = <[ (..$(TransformChildren(tb, children))) ]>;
+                def result = <[ $(tb.Name: usesite)($ctorArgs) ]>;
+                tb.Compile();
+                result
+            | None => <[ (..$(TransformChildren(tb, children))) ]>
             }
         }
     }
@@ -253,7 +247,7 @@ public class Yaml {
             }
         }
         
-        public Transform(tb: TypeBuilder, name: string, list: Node.List): void {
+        public Transform(tb: TypeBuilder, name: string, list: Node.List): PExpr {
             def locs = [tb.Location, list.GetLocation(tb)];
             def message(f: Location * string -> void, msg) {
                 foreach(loc in locs) f(loc, msg)
@@ -267,13 +261,8 @@ public class Yaml {
                 def elemType = GetCommonType(tb, locs, name, elements);
                 def elemValues = elements.Map(x => <[ $(x.ValueAsExpr()) : $elemType ]>);
                 def listFieldName = $"_$name";
-            
-                tb.Define(<[decl: $(listFieldName: usesite): System.Collections.Generic.List.[$elemType] = 
-                                      System.Collections.Generic.List.[$elemType]([..$elemValues]); ]>);    
-            
-                tb.Define(<[decl: public $(name: usesite): System.Collections.Generic.List.[$elemType] { 
-                                      get { $(listFieldName: usesite) }
-                                  } ]>);
+                tb.Define(<[decl: public $(listFieldName: usesite): System.Collections.Generic.List.[$elemType]; ]>);    
+                <[ System.Collections.Generic.List([..$elemValues]) ]>
             | ListKind.Maps(elements) =>
                 //Debugger.Launch();
                 def allElementsFlatList = elements.SelectMany(x => x);
@@ -301,6 +290,7 @@ public class Yaml {
                     mapTb.Define(<[decl: public $(name: usesite): $fieldType; ]>);
                 }
                 mapTb.Compile();
+                <[]>
             }
        }
     }
