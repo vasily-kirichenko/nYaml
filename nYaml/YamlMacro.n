@@ -94,7 +94,9 @@ public class Yaml {
 		            def tb = typer.Env.Define(<[ decl: [Record] public sealed class $typeName {} ]>);
 		            tb.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
 		            def ctorArgs = Builder.Transform(tb, None(), node);
-		            tb.Define(<[ decl: this() { this($ctorArgs) } ]>);
+		            //Debugger.Launch();
+		            Message.Hint($"args = $(ctorArgs.ToString()), args.Type = $(ctorArgs.GetType())");
+		            tb.Define(<[ decl: public this() { this($ctorArgs) } ]>);
 		            tb.Compile();
 		        });
 		        <[]>
@@ -148,7 +150,7 @@ public class Yaml {
 
         public ValueAsExpr(this x: Scalar): PExpr {
             match (x) {
-            | Int(x) => <[ $x ]>
+            | Int(x) => <[ $x: int ]>
             | String(x) => <[ $x ]>
             | Bool(x) => <[ $x ]>
             | TimeSpan(x) => <[ System.TimeSpan.FromMilliseconds($(x.TotalMilliseconds)) ]>
@@ -157,8 +159,8 @@ public class Yaml {
             }
         }
         
-        public UnderlyingTypeExpr(this x: Scalar, builder: TypeBuilder): PExpr { 
-            PExpr.FromQualifiedIdentifier(builder.Manager, x.UnderlyingType().FullName)
+        public UnderlyingTypeExpr(this x: Scalar, tb: TypeBuilder): PExpr { 
+            PExpr.FromQualifiedIdentifier(tb.Manager, x.UnderlyingType().FullName)
         }
     }
         
@@ -207,14 +209,14 @@ public class Yaml {
         }
         
         TransformMap(tb: TypeBuilder, name: option[string], children: list[NamedNode]): PExpr {
+            def ctorArgs = <[ (..$(TransformChildren(tb, children))) ]>;
             match (name) {
             | Some (name) => 
                 def tb = GenMapType(tb, name);
-                def ctorArgs = <[ (..$(TransformChildren(tb, children))) ]>;
                 def result = <[ $(tb.Name: usesite)($ctorArgs) ]>;
                 tb.Compile();
                 result
-            | None => <[ (..$(TransformChildren(tb, children))) ]>
+            | None => ctorArgs
             }
         }
     }

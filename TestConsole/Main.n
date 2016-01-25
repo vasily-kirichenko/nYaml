@@ -12,7 +12,9 @@ using SharpYaml;
 using SharpYaml.Serialization;
 
 namespace TestConsole {
-    [assembly: Yaml(Y4, <#
+    [assembly: Yaml(Y4, <# Person: 2 #>)];
+    
+/*    [assembly: Yaml(Y4, <#
 IntValue: 1
 FloatValue: 2.2
 StringValue: a string 
@@ -20,6 +22,8 @@ AnotherIntValue: 22
 BoolValue: true
 Person:
   Age: 22 #>)];
+*/  
+  
 //ListOfMaps:
   //- Name: name1
   //  Age: 33
@@ -37,14 +41,9 @@ Person:
     module Program
     {
         [Record]
-        variant V {
-            public shared: int;
-            | Case1 { i: int }
-            public GetShared(): (int * int) {
-                match (Case1(2, 3)) {
-                | Case1(i) as c1 => (i, c1.shared)
-                }
-            }
+        class R {
+            public i: int;
+            public this() { this(2) }
         }
         
         Main() : void

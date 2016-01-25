@@ -7,9 +7,9 @@ using Nemerle.Compiler.Parsetree;
 
 namespace Macros.Core
 {
-/// <summary>
-/// Converts all fields to be 'public immutable'.
-/// </summary>
+    /// <summary>
+    /// Converts all fields to be 'public immutable'.
+    /// </summary>
     [MacroUsage(MacroPhase.BeforeInheritance, MacroTargets.Class)]
     macro Rec(typeBuilder : TypeBuilder) {
         RecImpl.DoTransform(Macros.ImplicitCTX(), typeBuilder)
