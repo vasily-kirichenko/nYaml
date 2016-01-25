@@ -43,16 +43,16 @@ namespace nYaml
     using SharpYaml;
     using Macros.Core;
     
-    [Record, Show]
+    [Rec, Show]
     struct Pos {
-        public Line: int;
-        public Col: int
+        Line: int;
+        Col: int
     }
     
-    [Record, Show]
+    [Rec, Show]
     struct Range {
-        public Begin: TextPoint;
-        public End: TextPoint
+        Begin: TextPoint;
+        End: TextPoint
     }
     
     type KV[K, V] = KeyValuePair[K, V];

@@ -162,12 +162,7 @@ public class Yaml {
         }
     }
         
-    [Record, Show]
-    class NamedNode {
-        public Name: string;
-        public Node: Node
-    }
-    
+    [Rec, Show] class NamedNode { Name: string; Node: Node }
     type MapElements = list[NamedNode];
     
     [Record, Show]

@@ -83,8 +83,7 @@ namespace Macros.Core
         }
         
         public Transform(typer: Typer, ty: TypeBuilder): void {
-            match (GetSupportedType(ty)) {
-            | Some(st) =>
+            when (GetSupportedType(ty) is Some(st))
                 match (st) {
                 | Variant =>
                     foreach (opt in ty.GetVariantOptions())
@@ -92,7 +91,6 @@ namespace Macros.Core
                 | Record => 
                     DefineToString(typer, ty)
                 }
-            }
         }
     }
 }

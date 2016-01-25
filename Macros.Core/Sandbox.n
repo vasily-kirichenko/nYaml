@@ -31,9 +31,7 @@ namespace Macros.Core
                             System.Threading.Monitor.Exit(toLock);
                         }
                     ]>
-                | _ => 
-                    Message.FatalError(expr.Location, "Applicable on arrays only");
-                    <[]>
+                | _ => Message.FatalError(expr.Location, "Applicable on arrays only")
                 }
             }
             , typer.TypeExpr(expr));

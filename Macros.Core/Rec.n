@@ -1,0 +1,42 @@
+﻿using Nemerle;
+using Nemerle.Collections;
+using Nemerle.Text;
+using Nemerle.Utility;
+using Nemerle.Compiler;
+using Nemerle.Compiler.Parsetree;
+
+namespace Macros.Core
+{
+/// <summary>
+/// Converts all fields to be 'public immutable'.
+/// </summary>
+    [MacroUsage(MacroPhase.BeforeInheritance, MacroTargets.Class)]
+    macro Rec(typeBuilder : TypeBuilder) {
+        RecImpl.DoTransform(Macros.ImplicitCTX(), typeBuilder)
+    }
+
+    module RecImpl {
+        public DoTransform(typer: Typer, tb: TypeBuilder) : void {
+            Macros.DefineCTX(typer);
+
+            def toAdd = NemerleModifiers.Public;
+            def toRemove =
+                NemerleModifiers.Private |
+                NemerleModifiers.Protected |
+                NemerleModifiers.Internal |
+                NemerleModifiers.Mutable;
+
+            ChangeFieldsAccess(tb, toAdd, toRemove);
+            tb.AddMacroAttribute(<[ Nemerle.Core.Record ]>);
+            //tb.AddMacroAttribute(<[ Macros.Core.Show ]>);
+        }
+        
+        ChangeFieldsAccess(tb: TypeBuilder, toAdd: NemerleModifiers, toRemove: NemerleModifiers): void {
+            when(tb.Ast is TopDeclaration.Class(_, decls))
+                foreach(field is ClassMember.Field in decls) {
+                    field.Attributes |= toAdd;
+                    field.Attributes &= ~toRemove;
+                }
+        }
+    }
+}

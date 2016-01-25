@@ -62,6 +62,9 @@
     </MacroReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Rec.n">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Sandbox.n">
       <SubType>Code</SubType>
     </Compile>
