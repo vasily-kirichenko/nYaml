@@ -289,17 +289,17 @@ public class Yaml {
                 }
                 mapTb.Compile();
                 def ctorArgs =
-                    elements.Map(xs => {
-                        def values = 
-                            xs.Map(scalarNode => {
+                    elements.Map(mapElements => {
+                        def elementValues =
+                            mapElements.Map(scalarNode => {
                                 def scalar = scalarNode.Node :> Node.Scal;
                                 def value = scalar.v.ValueAsExpr();
                                 def valueCommonType = typesByNodeName[scalarNode.Name];
                                 <[ $value: $valueCommonType ]>
                             });
-                            <[ [..$values] ]>
-                        });
-                ctorArgs                
+                        <[ $(mapTb.Name: usesite)(..$elementValues) ]>
+                    });
+                [<[ [..$ctorArgs] ]>]
             }
        }
     }
