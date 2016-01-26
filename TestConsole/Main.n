@@ -12,17 +12,19 @@ using SharpYaml;
 using SharpYaml.Serialization;
 
 namespace TestConsole {
-    [assembly: Yaml(Y4, <# Person: 2 #>)];
+    [assembly: Yaml(Sample, <#
+Person:
+  Age: 3
+#>)]
     
-/*    [assembly: Yaml(Y4, <#
+/*    [assembly: Yaml(Sample, <#
 IntValue: 1
 FloatValue: 2.2
 StringValue: a string 
 AnotherIntValue: 22
 BoolValue: true
 Person:
-  Age: 22 #>)];
-*/  
+  Age: 22 #>)]; */
   
 //ListOfMaps:
   //- Name: name1
@@ -48,8 +50,8 @@ Person:
         
         Main() : void
         {
-            //def y4 = Y4();
-            //WriteLine(y4.AstAsString);
+            def s = Sample();
+            WriteLine(s.AstAsString);
             //WriteLine($"AList = $(y4.AList.NToList())");
             
 /*            def yaml = <#

@@ -96,7 +96,7 @@ public class Yaml {
 		            def ctorArgs = Builder.Transform(tb, None(), node);
 		            //Debugger.Launch();
 		            Message.Hint($"args = $(ctorArgs.ToString()), args.Type = $(ctorArgs.GetType())");
-		            tb.Define(<[ decl: public this() { this($ctorArgs) } ]>);
+		            tb.Define(<[ decl: public this() { this(..$ctorArgs) } ]>);
 		            tb.Compile();
 		        });
 		        <[]>
@@ -150,7 +150,7 @@ public class Yaml {
 
         public ValueAsExpr(this x: Scalar): PExpr {
             match (x) {
-            | Int(x) => <[ $x: int ]>
+            | Int(x) => <[ $x ]>
             | String(x) => <[ $x ]>
             | Bool(x) => <[ $x ]>
             | TimeSpan(x) => <[ System.TimeSpan.FromMilliseconds($(x.TotalMilliseconds)) ]>
@@ -167,9 +167,9 @@ public class Yaml {
     [Rec, Show] class NamedNode { Name: string; Node: Node }
     type MapElements = list[NamedNode];
     
-    [Record, Show]
+    [Rec, Show]
     variant Node {
-        public Range: option[Range];
+        Range: option[Range];
         | Scal { v: Scalar }
         | List { elements: list[Node] }
         | Map { nodes: MapElements }
@@ -181,9 +181,10 @@ public class Yaml {
     }
     
     module Builder {
-        public Transform (tb: TypeBuilder, name: option[string], node: Node): PExpr  {
+        public Transform (tb: TypeBuilder, name: option[string], node: Node): list[PExpr]  {
+            //Debugger.Launch();
             match (name, node) {
-            | (Some(name), Scal(_) as scal) => TransformScalar(tb, name, scal)
+            | (Some(name), Scal(_) as scal) => [TransformScalar(tb, name, scal)]
             | (_, Map(_) as m) => TransformMap(tb, name, m.nodes)
             //| (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l)
             | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
@@ -197,7 +198,7 @@ public class Yaml {
         }
         
         TransformChildren(tb: TypeBuilder, children: list[NamedNode]): list[PExpr] {
-            children.Map(x => Transform(tb, Some(x.Name), x.Node))
+            children.Map(x => Transform(tb, Some(x.Name), x.Node)).Flatten()
         }
         
         public GenMapType(parentTb: TypeBuilder, name: string): TypeBuilder {
@@ -208,15 +209,15 @@ public class Yaml {
             mapTb
         }
         
-        TransformMap(tb: TypeBuilder, name: option[string], children: list[NamedNode]): PExpr {
-            def ctorArgs = <[ (..$(TransformChildren(tb, children))) ]>;
+        TransformMap(tb: TypeBuilder, name: option[string], children: list[NamedNode]): list[PExpr] {
             match (name) {
             | Some (name) => 
                 def tb = GenMapType(tb, name);
-                def result = <[ $(tb.Name: usesite)($ctorArgs) ]>;
+                def ctorArgs = TransformChildren(tb, children);
+                def result = <[ $(tb.Name: usesite)(..$ctorArgs) ]>;
                 tb.Compile();
-                result
-            | None => ctorArgs
+                [result]
+            | None => TransformChildren(tb, children);
             }
         }
     }
