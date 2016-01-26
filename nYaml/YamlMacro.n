@@ -262,11 +262,12 @@ public class Yaml {
                 [<[ [..$elemValues] ]>]
             | ListKind.Maps(elements) =>
                 //Debugger.Launch();
+                //Message.Hint($"$name: elements.Length = $(elements.Length) elements = $elements");
                 def allElementsFlatList = elements.SelectMany(x => x);
                 when (allElementsFlatList.Exists(x => !(x.Node is Node.Scal)))
                     message(Message.Error, "Map elements of lists must contain scalars only.");
                 def uniqueNames = allElementsFlatList.Map(x => x.Name).Distinct().NToList();    
-                def typesByName =
+                def typesByNodeName =
                     allElementsFlatList
                         .Grouping(x => (x.Name, x))
                         .Select(nodesWithSameName => {
@@ -280,14 +281,25 @@ public class Yaml {
                             (nodesWithSameName.Key, commonType)
                         })
                         .ToDictionary(x => x[0], x => x[1]);
-                message(Message.Hint, $"List of maps \"$name\": $(typesByName.Map(p => $\"$(p.Key) => $(p.Value)\")))");
+                message(Message.Hint, $"List of maps \"$name\": $(typesByNodeName.Map(p => $\"$(p.Key) => $(p.Value)\")))");
                 def mapTb = Builder.GenMapType(tb, name);
                 foreach(name in uniqueNames){
-                    def fieldType = typesByName[name];
-                    mapTb.Define(<[decl: public $(name: usesite): $fieldType; ]>);
+                    def propType = typesByNodeName[name];
+                    mapTb.Define(<[decl: public $(name: usesite): $propType; ]>);
                 }
                 mapTb.Compile();
-                [<[]>]
+                def ctorArgs =
+                    elements.Map(xs => {
+                        def values = 
+                            xs.Map(scalarNode => {
+                                def scalar = scalarNode.Node :> Node.Scal;
+                                def value = scalar.v.ValueAsExpr();
+                                def valueCommonType = typesByNodeName[scalarNode.Name];
+                                <[ $value: $valueCommonType ]>
+                            });
+                            <[ [..$values] ]>
+                        });
+                ctorArgs                
             }
        }
     }
