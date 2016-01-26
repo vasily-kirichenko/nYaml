@@ -14,7 +14,8 @@ using SharpYaml.Serialization;
 namespace TestConsole {
     [assembly: Yaml(Sample, <#
 Person:
-  Age: 3
+  - 2
+  - 3
 #>)]
     
 /*    [assembly: Yaml(Sample, <#

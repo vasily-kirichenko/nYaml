@@ -186,7 +186,7 @@ public class Yaml {
             match (name, node) {
             | (Some(name), Scal(_) as scal) => [TransformScalar(tb, name, scal)]
             | (_, Map(_) as m) => TransformMap(tb, name, m.nodes)
-            //| (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l)
+            | (Some(name), List(_) as l) => ListBuilder.Transform(tb, name, l)
             | (None, _) => Message.FatalError(tb.Location, "Only Maps are allowed at the root level.")
             }
         }
@@ -245,7 +245,7 @@ public class Yaml {
             }
         }
         
-        public Transform(tb: TypeBuilder, name: string, list: Node.List): PExpr {
+        public Transform(tb: TypeBuilder, name: string, list: Node.List): list[PExpr] {
             def locs = [tb.Location, list.GetLocation(tb)];
             def message(f: Location * string -> void, msg) {
                 foreach(loc in locs) f(loc, msg)
@@ -258,9 +258,8 @@ public class Yaml {
             
                 def elemType = GetCommonType(tb, locs, name, elements);
                 def elemValues = elements.Map(x => <[ $(x.ValueAsExpr()) : $elemType ]>);
-                def listFieldName = $"_$name";
-                tb.Define(<[decl: public $(listFieldName: usesite): System.Collections.Generic.List.[$elemType]; ]>);    
-                <[ System.Collections.Generic.List([..$elemValues]) ]>
+                tb.Define(<[decl: public $(name: usesite): list[$elemType]; ]>);    
+                [<[ [..$elemValues] ]>]
             | ListKind.Maps(elements) =>
                 //Debugger.Launch();
                 def allElementsFlatList = elements.SelectMany(x => x);
@@ -288,7 +287,7 @@ public class Yaml {
                     mapTb.Define(<[decl: public $(name: usesite): $fieldType; ]>);
                 }
                 mapTb.Compile();
-                <[]>
+                [<[]>]
             }
        }
     }
