@@ -90,7 +90,7 @@ namespace Macros.Core
                         DefineToString(typer, opt)
                 | Record => 
                     DefineToString(typer, ty)
-                }
+            }
         }
     }
 }

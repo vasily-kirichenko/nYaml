@@ -72,7 +72,6 @@ public class Yaml {
                 def node = serializer.Deserialize(StringReader(text));
             
                 def loop(n: object): Node {
-                    //Message.Hint($"Node: $n: $(n.GetType().Name)");
                     def r = serializerBackend.Ranges.TryFind(n);
                     match (n) {
                     | l is List[object] => Node.List(r, l.Map(loop))
@@ -94,7 +93,6 @@ public class Yaml {
 		            def tb = typer.Env.Define(<[ decl: [Record] public sealed class $typeName {} ]>);
 		            tb.Define(<[ decl: public AstAsString: string { get { $nodeAsString }} ]>);
 		            def ctorArgs = Builder.Transform(tb, None(), node);
-		            //Debugger.Launch();
 		            Message.Hint($"args = $(ctorArgs.ToString()), args.Type = $(ctorArgs.GetType())");
 		            tb.Define(<[ decl: public this() { this(..$ctorArgs) } ]>);
 		            tb.Compile();
@@ -204,20 +202,20 @@ public class Yaml {
         public GenMapType(parentTb: TypeBuilder, name: string): TypeBuilder {
             def typeName = Macros.NewSymbol(name);
             def mapTb = parentTb.DefineNestedType(<[decl: [Record] public sealed class $typeName { } ]>);
-            def typeExpr = <[ $(typeName: name) ]>;
-            parentTb.Define(<[decl: public $(name: usesite): $typeExpr; ]>);
+            //mapTb.AddMacroAttribute(<[ Macros.Core.Show ]>);
             mapTb
         }
         
         TransformMap(tb: TypeBuilder, name: option[string], children: list[NamedNode]): list[PExpr] {
             match (name) {
             | Some (name) => 
-                def tb = GenMapType(tb, name);
-                def ctorArgs = TransformChildren(tb, children);
-                def result = <[ $(tb.Name: usesite)(..$ctorArgs) ]>;
-                tb.Compile();
-                [result]
-            | None => TransformChildren(tb, children);
+                def mapTb = GenMapType(tb, name);
+                tb.Define(<[decl: public $(name: usesite): $(mapTb.Name: usesite); ]>);
+                def ctorArgs = TransformChildren(mapTb, children);
+                mapTb.Compile();
+                [<[ $(mapTb.Name: usesite)(..$ctorArgs) ]>]
+            | None =>
+                TransformChildren(tb, children)
             }
         }
     }
@@ -283,6 +281,7 @@ public class Yaml {
                         .ToDictionary(x => x[0], x => x[1]);
                 message(Message.Hint, $"List of maps \"$name\": $(typesByNodeName.Map(p => $\"$(p.Key) => $(p.Value)\")))");
                 def mapTb = Builder.GenMapType(tb, name);
+                tb.Define(<[ decl: public $(name: usesite): list[$(mapTb.Name: usesite)]; ]>);
                 foreach(name in uniqueNames){
                     def propType = typesByNodeName[name];
                     mapTb.Define(<[decl: public $(name: usesite): $propType; ]>);
