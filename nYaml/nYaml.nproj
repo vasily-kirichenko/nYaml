@@ -37,12 +37,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
-    <Reference Include="Nemerle.ActivePatterns, Version=1.2.0.486, Culture=neutral, PublicKeyToken=null">
-      <Name>Nemerle.ActivePatterns</Name>
-      <AssemblyName>Nemerle.ActivePatterns.dll</AssemblyName>
-      <HintPath>C:\Program Files (x86)\Nemerle\net-4.0\Nemerle.ActivePatterns.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="SharpYaml, Version=1.5.3.30552, Culture=neutral, PublicKeyToken=1ced8108e942bc02">
       <Name>SharpYaml</Name>
       <AssemblyName>SharpYaml.dll</AssemblyName>

@@ -4,7 +4,6 @@ using Nemerle.Compiler;
 using Nemerle.Compiler.Parsetree;
 using Nemerle.Text;
 using Nemerle.Utility;
-using Nemerle.ActivePatterns;
 using Nemerle.Extensions;
 using System;
 using System.IO;
@@ -116,11 +115,17 @@ public class Yaml {
     
 	module ScalarOps {
         public ParseStr(str: string): Scalar {
-            active match (str) {  
-            | ValueParser.TimeSpan(x) => Scalar.TimeSpan(x)
-            | ValueParser.Uri(x) => Scalar.Uri(x)
-            | ValueParser.Bool(x) => Scalar.Bool(x)
-            | x => Scalar.String(x)
+            match (ValueParser.TimeSpan(str)) {
+            | Some(x) => Scalar.TimeSpan(x)
+            | _ =>
+                match (ValueParser.Uri(str)) {
+                | Some(x) => Scalar.Uri(x)
+                | _ =>
+                    match (ValueParser.Bool(str)) {
+                    | Some(x) => Scalar.Bool(x)
+                    | _ => Scalar.String(str)
+                    }
+                }
             }
         }
         
